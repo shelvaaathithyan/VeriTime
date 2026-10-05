@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Navy Palette -->
+    <color name="navy_900">#102A43</color>
+    <color name="navy_800">#0E4270</color>
+    <color name="navy_700">#145C95</color>
+    <color name="navy_600">#1769AA</color>
+    <color name="navy_500">#52606D</color>
+    <color name="navy_400">#829AB1</color>
+    <color name="navy_300">#A3C8E5</color>
+    <color name="navy_200">#C9DFF1</color>
+    <color name="navy_100">#EAF3FA</color>
+
+    <!-- Semantic -->
+    <color name="emerald_700">#065F46</color>
+    <color name="emerald_600">#059669</color>
+    <color name="emerald_50">#ECFDF5</color>
+    <color name="orange_600">#D97706</color>
+    <color name="red_700">#B91C1C</color>
+    <color name="red_600">#DC2626</color>
+
+    <!-- UI -->
+    <color name="white">#FFFFFF</color>
+    <color name="background">#F5F9FC</color>
+    <color name="error_bg">#FEF2F2</color>
+    <color name="navy_800_dark">#172B4D</color>
+</resources>

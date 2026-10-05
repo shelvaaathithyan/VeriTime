@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">VeriTime</string>
+    <string name="title_register_credential">Register NFC Credential</string>
+    <string name="record_checkin">RECORD CHECK-IN</string>
+    <string name="nfc_not_available">NFC is not available on this device.</string>
+    <string name="nfc_disabled">Please enable NFC in Android settings.</string>
+    <string name="unknown_credential">Unknown NFC credential. Please contact administration.</string>
+</resources>

@@ -1,0 +1,328 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="@color/navy_900"
+            app:titleTextColor="@color/white"
+            app:title="@string/app_name" />
+
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior"
+        android:padding="20dp"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center_horizontal">
+
+            <!-- Header -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="VERITIME"
+                android:textSize="28sp"
+                android:textStyle="bold"
+                android:textColor="@color/navy_900"
+                android:layout_marginTop="24dp"
+                android:letterSpacing="0.08" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Security Check-in"
+                android:textSize="14sp"
+                android:textColor="@color/navy_500"
+                android:layout_marginBottom="32dp" />
+
+            <!-- Status Icon -->
+            <ImageView
+                android:id="@+id/statusIcon"
+                android:layout_width="80dp"
+                android:layout_height="80dp"
+                android:src="@drawable/ic_nfc_ready"
+                android:layout_marginBottom="16dp" />
+
+            <!-- Status Title -->
+            <TextView
+                android:id="@+id/statusTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="NFC READY"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="@color/navy_600"
+                android:layout_marginBottom="8dp" />
+
+            <!-- Status Subtitle -->
+            <TextView
+                android:id="@+id/statusSubtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Tap student's college ID card on this phone"
+                android:textSize="14sp"
+                android:textColor="@color/navy_500"
+                android:gravity="center"
+                android:layout_marginBottom="24dp"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp" />
+
+            <!-- Progress -->
+            <ProgressBar
+                android:id="@+id/progressIndicator"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                android:layout_marginBottom="16dp" />
+
+            <!-- Card Info -->
+            <androidx.cardview.widget.CardView
+                android:id="@+id/cardInfo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="@color/white"
+                android:layout_marginBottom="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="CARD DETECTED"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/navy_500"
+                        android:letterSpacing="0.1"
+                        android:layout_marginBottom="12dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Card Identifier"
+                        android:textSize="11sp"
+                        android:textColor="@color/navy_400"
+                        android:layout_marginBottom="2dp" />
+
+                    <TextView
+                        android:id="@+id/tvCardIdentifier"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="—"
+                        android:textSize="14sp"
+                        android:fontFamily="monospace"
+                        android:textColor="@color/navy_800"
+                        android:layout_marginBottom="12dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="NFC Technology"
+                        android:textSize="11sp"
+                        android:textColor="@color/navy_400"
+                        android:layout_marginBottom="2dp" />
+
+                    <TextView
+                        android:id="@+id/tvNfcTechnology"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="—"
+                        android:textSize="13sp"
+                        android:textColor="@color/navy_700" />
+
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- Student Info -->
+            <androidx.cardview.widget.CardView
+                android:id="@+id/studentInfo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="@color/white"
+                android:layout_marginBottom="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="STUDENT IDENTIFIED"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/emerald_600"
+                        android:letterSpacing="0.1"
+                        android:layout_marginBottom="12dp" />
+
+                    <!-- Student fields grid -->
+                    <GridLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:columnCount="2"
+                        android:rowCount="5">
+
+                        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:orientation="vertical" android:layout_columnWeight="1" android:layout_margin="4dp">
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Student" android:textSize="11sp" android:textColor="@color/navy_400"/>
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:id="@+id/tvStudentName" android:text="—" android:textSize="15sp" android:textStyle="bold" android:textColor="@color/navy_900"/>
+                        </LinearLayout>
+                        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:orientation="vertical" android:layout_columnWeight="1" android:layout_margin="4dp">
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Student ID" android:textSize="11sp" android:textColor="@color/navy_400"/>
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:id="@+id/tvStudentId" android:text="—" android:textSize="14sp" android:fontFamily="monospace" android:textColor="@color/navy_700"/>
+                        </LinearLayout>
+                        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:orientation="vertical" android:layout_columnWeight="1" android:layout_margin="4dp">
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Department" android:textSize="11sp" android:textColor="@color/navy_400"/>
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:id="@+id/tvDepartment" android:text="—" android:textSize="14sp" android:textColor="@color/navy_700"/>
+                        </LinearLayout>
+                        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:orientation="vertical" android:layout_columnWeight="1" android:layout_margin="4dp">
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Arrival" android:textSize="11sp" android:textColor="@color/navy_400"/>
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:id="@+id/tvArrivalTime" android:text="—" android:textSize="14sp" android:fontFamily="monospace" android:textColor="@color/navy_700"/>
+                        </LinearLayout>
+                        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:orientation="vertical" android:layout_columnWeight="1" android:layout_margin="4dp">
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Scheduled" android:textSize="11sp" android:textColor="@color/navy_400"/>
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:id="@+id/tvScheduledTime" android:text="—" android:textSize="14sp" android:fontFamily="monospace" android:textColor="@color/navy_700"/>
+                        </LinearLayout>
+                        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:orientation="vertical" android:layout_columnWeight="1" android:layout_margin="4dp">
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:id="@+id/tvLateByLabel" android:text="Late by" android:textSize="11sp" android:textColor="@color/navy_400"/>
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:id="@+id/tvLateBy" android:text="—" android:textSize="14sp" android:fontFamily="monospace" android:textColor="@color/orange_600"/>
+                        </LinearLayout>
+                    </GridLayout>
+
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- Check-in Success -->
+            <androidx.cardview.widget.CardView
+                android:id="@+id/checkinSuccess"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="@color/emerald_50"
+                android:layout_marginBottom="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="✓ CHECK-IN RECORDED"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/emerald_700"
+                        android:layout_marginBottom="12dp" />
+
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginBottom="8dp">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Student" android:textSize="11sp" android:textColor="@color/navy_500"/>
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:id="@+id/tvSuccessStudent" android:text="—" android:textSize="15sp" android:textStyle="bold" android:textColor="@color/navy_900"/>
+                    </LinearLayout>
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+                        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:orientation="vertical" android:layout_weight="1">
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Time" android:textSize="11sp" android:textColor="@color/navy_500"/>
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:id="@+id/tvSuccessTime" android:text="—" android:textSize="14sp" android:fontFamily="monospace" android:textColor="@color/navy_800"/>
+                        </LinearLayout>
+                        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:orientation="vertical" android:layout_weight="1">
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Late" android:textSize="11sp" android:textColor="@color/navy_500"/>
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:id="@+id/tvSuccessLate" android:text="—" android:textSize="14sp" android:textColor="@color/orange_600"/>
+                        </LinearLayout>
+                    </LinearLayout>
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="8dp">
+                        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:orientation="vertical" android:layout_weight="1">
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Location" android:textSize="11sp" android:textColor="@color/navy_500"/>
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:id="@+id/tvSuccessLocation" android:text="—" android:textSize="13sp" android:textColor="@color/navy_700"/>
+                        </LinearLayout>
+                        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:orientation="vertical" android:layout_weight="1">
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Reader" android:textSize="11sp" android:textColor="@color/navy_500"/>
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:id="@+id/tvSuccessReader" android:text="—" android:textSize="13sp" android:textColor="@color/navy_700"/>
+                        </LinearLayout>
+                    </LinearLayout>
+
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- Error Card -->
+            <androidx.cardview.widget.CardView
+                android:id="@+id/errorCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="@color/error_bg"
+                android:layout_marginBottom="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:id="@+id/tvErrorMessage"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Error"
+                        android:textSize="14sp"
+                        android:textColor="@color/red_700" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- Action Buttons -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnRecordCheckin"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:text="@string/record_checkin"
+                android:textSize="15sp"
+                android:visibility="gone"
+                android:layout_marginBottom="12dp"
+                app:backgroundTint="@color/navy_600"
+                android:textColor="@color/white" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnReset"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="Scan Another Card"
+                android:textSize="14sp"
+                android:visibility="gone"
+                app:backgroundTint="@color/white"
+                android:textColor="@color/navy_700"
+                style="@style/Widget.Material3.Button.OutlinedButton" />
+
+        </LinearLayout>
+    </ScrollView>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- NFC permission — required for reading student NFC ID cards -->
+    <uses-permission android:name="android.permission.NFC" />
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Declare NFC as a required hardware feature -->
+    <uses-feature android:name="android.hardware.nfc" android:required="true" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.VeriTime"
+        android:usesCleartextTraffic="true">
+
+        <!-- Main Security Check-in Activity -->
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Registration Activity (dev/admin only) -->
+        <activity
+            android:name=".ui.RegisterCredentialActivity"
+            android:exported="false"
+            android:label="@string/title_register_credential" />
+
+    </application>
+</manifest>
