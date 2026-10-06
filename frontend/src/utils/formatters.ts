@@ -58,6 +58,7 @@ export function getVerificationBadgeClass(status: VerificationStatus): string {
 export function getReasonLabel(reason: ExplanationReason | string): string {
   const map: Record<string, string> = {
     TRANSPORT_DELAY: 'Transport Delay',
+    TRAFFIC: 'Traffic / Long Commute',
     HEAVY_RAIN: 'Heavy Rain / Weather',
     WEATHER: 'Weather',
     MEDICAL_EMERGENCY: 'Medical / Emergency',

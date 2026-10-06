@@ -1,5 +1,35 @@
 // Shared TypeScript types for VeriTime frontend
 
+export interface AuthUser {
+  id: string;
+  username: string;
+  name: string;
+  role: 'STUDENT' | 'TEACHER';
+  studentId: string | null;
+}
+
+export interface MyLateCheckin {
+  id: string;
+  student_id: string;
+  timestamp: string;
+  scheduled_time: string;
+  late_minutes: number;
+  is_late: number;
+  class_code?: string;
+  period?: number;
+  verification_status?: VerificationStatus;
+  room?: string;
+  reason?: string;
+  transcript?: string;
+  statement_deadline?: string | null;
+}
+
+export interface MyLateCheckinsResponse {
+  serverTime: string;
+  windowMinutes: number;
+  checkins: MyLateCheckin[];
+}
+
 export type VerificationStatus =
   | 'SUPPORTED'
   | 'PARTIALLY_SUPPORTED'
@@ -14,6 +44,7 @@ export type TeacherDecision =
 
 export type ExplanationReason =
   | 'TRANSPORT_DELAY'
+  | 'TRAFFIC'
   | 'HEAVY_RAIN'
   | 'WEATHER'
   | 'MEDICAL_EMERGENCY'
@@ -30,6 +61,17 @@ export interface Student {
   email?: string;
   nfc_credential_id?: string;
   nfc_status?: string;
+  home_area?: string;
+  home_lat?: number;
+  home_lng?: number;
+}
+
+export interface CommuteEstimate {
+  distanceKm: number;
+  durationMinutes: number;
+  typicalMinutes: number;
+  trafficDelayMinutes: number;
+  source: 'GOOGLE_ROUTES' | 'ESTIMATE';
 }
 
 export interface NfcLookupResponse {
@@ -85,6 +127,9 @@ export interface LateArrival {
   teacher_decision?: TeacherDecision;
   class_code?: string;
   period?: number;
+  room?: string;
+  gate_entry_at?: string | null;
+  statement_missed?: number;
 }
 
 export interface EvidenceItem {
@@ -100,6 +145,7 @@ export interface LateArrivalEvidence {
     name: string;
     department: string;
     studentType: string;
+    homeArea?: string | null;
   };
   checkin: {
     timestamp: string;
@@ -107,16 +153,26 @@ export interface LateArrivalEvidence {
     lateMinutes: number;
     location: string;
     readerId: string;
+    room?: string | null;
+    gateEntryAt?: string | null;
+    clockAdjusted?: boolean;
   };
+  statementDeadline?: string | null;
+  statementMissed?: boolean;
   explanation: {
     reason: ExplanationReason;
     additionalExplanation?: string;
     timestamp: string;
+    inputMode?: 'SELECTED' | 'VOICE' | 'TEXT';
+    transcript?: string | null;
+    summary?: string | null;
+    minutesAfterArrival?: number | null;
   } | null;
   weather: {
-    date: string;
     condition: string;
     severity: string;
+    description?: string | null;
+    location?: string | null;
   } | null;
   transport: {
     date: string;
@@ -124,6 +180,8 @@ export interface LateArrivalEvidence {
     delay_minutes: number;
     description: string;
   } | null;
+  isFirstArrival: boolean;
+  commute: CommuteEstimate | null;
   historicalLateCount: number;
   verificationStatus: VerificationStatus;
   verificationSummary: string;

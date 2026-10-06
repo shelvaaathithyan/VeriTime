@@ -270,6 +270,45 @@
                         </LinearLayout>
                     </LinearLayout>
 
+                    <!-- Shown after a late classroom tap: student scans this to record their explanation -->
+                    <LinearLayout
+                        android:id="@+id/qrSection"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:gravity="center_horizontal"
+                        android:layout_marginTop="16dp"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:id="@+id/tvQrTitle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="You are late — scan to explain"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/orange_600"
+                            android:layout_marginBottom="8dp" />
+
+                        <ImageView
+                            android:id="@+id/ivQrCode"
+                            android:layout_width="240dp"
+                            android:layout_height="240dp"
+                            android:background="@color/white"
+                            android:padding="8dp"
+                            android:contentDescription="QR code to record your explanation" />
+
+                        <TextView
+                            android:id="@+id/tvQrHint"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Scan with your phone camera and record within 10 minutes"
+                            android:textSize="13sp"
+                            android:gravity="center"
+                            android:textColor="@color/navy_700"
+                            android:layout_marginTop="8dp" />
+                    </LinearLayout>
+
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 

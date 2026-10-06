@@ -24,7 +24,7 @@ export default function Dashboard() {
       setData(dash);
       setCheckins(ci);
     } catch {
-      setError('Unable to connect to VeriTime backend. Ensure the backend is running on port 5000.');
+      setError('Unable to connect to VeriTime backend. Ensure the backend is running on port 5001.');
     } finally {
       setLoading(false);
     }
@@ -179,6 +179,8 @@ export default function Dashboard() {
                     <td className="table-td text-sm font-medium">
                       {c.is_late ? (
                         <span className="text-orange-600">Late {c.late_minutes} min</span>
+                      ) : c.schedule_status === 'CAMPUS_ENTRY' ? (
+                        <span className="text-navy-500">Entered campus</span>
                       ) : c.schedule_status === 'FREE_PERIOD' ? (
                         <span className="text-blue-600">Free Period</span>
                       ) : c.schedule_status === 'NO_SCHEDULED_CLASS' ? (

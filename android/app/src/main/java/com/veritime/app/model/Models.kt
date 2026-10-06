@@ -30,7 +30,14 @@ data class CheckinResponse(
     val scheduleStatus: String? = null,
     val location: String? = null,
     val readerId: String? = null,
-    val timestamp: String? = null
+    val timestamp: String? = null,
+    val checkpoint: String? = null,          // "GATE" or "CLASSROOM"
+    val classCode: String? = null,
+    val room: String? = null,
+    val gateEntryTime: String? = null,
+    val clockAdjusted: Boolean? = null,
+    val statementWindowMinutes: Int? = null,
+    val explanationUrl: String? = null       // link encoded in the QR code for late students
 )
 
 data class NfcCardData(

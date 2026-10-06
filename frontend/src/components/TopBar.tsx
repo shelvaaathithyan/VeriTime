@@ -1,9 +1,11 @@
 import { useLocation } from 'react-router-dom';
-import { RefreshCw, Activity } from 'lucide-react';
+import { RefreshCw, Activity, LogOut } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import { formatDate } from '../utils/formatters';
 
 export default function TopBar() {
   const location = useLocation();
+  const { user, logout } = useAuth();
   const date = new Date().toISOString();
   
   let title = 'Dashboard';
@@ -38,6 +40,18 @@ export default function TopBar() {
         >
           <RefreshCw size={16} />
         </button>
+        {user && (
+          <div className="flex items-center gap-3 pl-4 border-l border-navy-100">
+            <span className="text-sm font-medium text-navy-700">{user.name}</span>
+            <button
+              onClick={logout}
+              className="flex items-center gap-1.5 text-sm text-navy-500 hover:text-navy-800"
+              title="Sign out"
+            >
+              <LogOut size={15} /> Sign out
+            </button>
+          </div>
+        )}
       </div>
     </header>
   );
