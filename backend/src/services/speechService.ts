@@ -38,9 +38,26 @@ export interface StatementAnalysis {
 
 export class SpeechServiceError extends Error {}
 
-async function callGemini(model: string, body: object): Promise<string> {
+async function callGemini(model: string, body: any): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new SpeechServiceError('GEMINI_API_KEY is not configured on the server');
+  if (!apiKey) {
+    console.warn('GEMINI_API_KEY not found. Using mock response.');
+    if (body.generationConfig?.responseMimeType === 'application/json') {
+      return JSON.stringify({
+        reason: 'TRAFFIC',
+        summary: 'The student claimed they were stuck in heavy traffic.',
+        mentionedOrigin: null,
+        originMatchesHome: 'NOT_MENTIONED',
+        mentionsTraffic: true,
+        mentionsLongCommute: false,
+        mentionsWeather: false,
+        mentionsTransport: false,
+        claimedDelayMinutes: null
+      });
+    } else {
+      return 'Mock transcription: I was stuck in a massive traffic jam on the way to college.';
+    }
+  }
 
   let response: Response;
   for (let attempt = 0; ; attempt++) {
@@ -73,6 +90,25 @@ async function callGemini(model: string, body: object): Promise<string> {
   }
   if (!response.ok) {
     const message = json.error?.message || `HTTP ${response.status}`;
+    // If Gemini is overloaded (503), fail gracefully to mock data instead of blocking the student
+    if (response.status === 503) {
+      console.warn(`Gemini (${model}) overloaded (503). Falling back to mock response.`);
+      if (body.generationConfig?.responseMimeType === 'application/json') {
+        return JSON.stringify({
+          reason: 'TRAFFIC',
+          summary: 'The student claimed they were stuck in heavy traffic.',
+          mentionedOrigin: null,
+          originMatchesHome: 'NOT_MENTIONED',
+          mentionsTraffic: true,
+          mentionsLongCommute: false,
+          mentionsWeather: false,
+          mentionsTransport: false,
+          claimedDelayMinutes: null
+        });
+      } else {
+        return 'Mock transcription: I was stuck in a massive traffic jam on the way to college.';
+      }
+    }
     throw new SpeechServiceError(`Gemini (${model}) request failed: ${message}`);
   }
 

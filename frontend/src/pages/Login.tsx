@@ -1,14 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Shield, LogIn, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export function homePathFor(role: 'STUDENT' | 'TEACHER'): string {
-  return role === 'STUDENT' ? '/explanation' : '/classes';
+  return '/classes'; // Only teachers log in now
 }
 
 export default function Login() {
-  const { user, login } = useAuth();
+  const { user, login, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [username, setUsername] = useState('');
@@ -19,7 +19,13 @@ export default function Login() {
   // Page the user was trying to reach before being sent to log in
   const from = (location.state as { from?: string } | null)?.from;
 
-  if (user) return <Navigate to={homePathFor(user.role)} replace />;
+  useEffect(() => {
+    if (user && user.role === 'STUDENT') {
+      logout();
+    }
+  }, [user, logout]);
+
+  if (user && user.role === 'TEACHER') return <Navigate to="/classes" replace />;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,11 +33,8 @@ export default function Login() {
     setError(null);
     try {
       const loggedIn = await login(username, password);
-      const home = homePathFor(loggedIn.role);
-      // Only return to the original page if this role is allowed there
-      const isStudentPage = !!from && from.startsWith('/explanation');
-      const canReturn = from && (loggedIn.role === 'STUDENT' ? isStudentPage : !isStudentPage);
-      navigate(canReturn ? from! : home, { replace: true });
+      const home = '/classes';
+      navigate(from || home, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
@@ -97,7 +100,7 @@ export default function Login() {
         </form>
 
         <p className="text-xs text-navy-400 text-center mt-4">
-          Students sign in with their roll number. Teachers sign in with their staff username.
+          Teachers sign in with their staff username.
         </p>
       </div>
     </main>

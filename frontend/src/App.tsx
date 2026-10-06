@@ -63,11 +63,9 @@ function App() {
         <Route
           path="/explanation"
           element={
-            <RequireRole role="STUDENT">
-              <main className="min-h-screen bg-navy-50">
-                <StudentExplanation />
-              </main>
-            </RequireRole>
+            <main className="min-h-screen bg-slate-50 overflow-x-hidden relative">
+              <StudentExplanation />
+            </main>
           }
         />
         <Route path="*" element={<RequireRole role="TEACHER"><AdminShell /></RequireRole>} />

@@ -54,6 +54,9 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
     private var checkinTimestamp: String? = null
     private lateinit var settings: DeviceSettings
     private var autoResetJob: Job? = null
+    
+    // Strict lock to prevent multiple cards in a wallet from fighting each other
+    @Volatile private var isReadyForScan = true
 
     companion object {
         private const val TAG = "VeriTime-Main"
@@ -131,11 +134,19 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
         if (tag == null) return
         Log.d(TAG, "Real NFC tag detected: ${tag.id.contentToString()}")
 
+        if (!isReadyForScan) {
+            Log.d(TAG, "Ignored scan because app is already processing a card or showing a QR code")
+            return
+        }
+
         try {
             val cardData = NfcCardReader.readCard(tag)
+            
+            isReadyForScan = false
+
             runOnUiThread {
                 autoResetJob?.cancel()
-                resetToReady()
+                // Do not call resetToReady() here, as it unlocks isReadyForScan immediately!
                 detectedCardData = cardData
                 showCardDetected(cardData)
                 lookupStudent(cardData)
@@ -461,6 +472,7 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
             statusTitle.text = "Error"
             statusTitle.setTextColor(getColor(R.color.red_600))
         }
+        isReadyForScan = true
     }
 
     private fun resetToReady() {
@@ -468,6 +480,7 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
         lookupResponse = null
         checkinTimestamp = null
         showReadyState()
+        isReadyForScan = true
     }
 
     private fun formatScheduledDisplay(time: String): String {

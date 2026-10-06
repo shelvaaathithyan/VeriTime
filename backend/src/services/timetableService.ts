@@ -31,8 +31,8 @@ const PERIODS = [
   { p: 8, start: '16:20', end: '17:10' },
   { p: 9, start: '17:30', end: '18:20' },
   { p: 10, start: '18:20', end: '19:10' },
-  { p: 11, start: '19:15', end: '20:05' },
-  { p: 12, start: '20:05', end: '20:55' },
+  { p: 11, start: '19:25', end: '19:50' },
+  { p: 12, start: '19:55', end: '21:00' },
 ];
 
 type TimetableEntry = { type: 'CLASS' | 'FREE' | 'EMPTY'; label?: string; room?: string };
@@ -73,7 +73,9 @@ const TIMETABLE: Record<string, Record<number, TimetableEntry>> = {
     5: { type: 'CLASS', label: '23N014', room: 'Q301' },
     6: { type: 'CLASS', label: '23N020', room: 'Q301' },
     7: { type: 'FREE', label: 'LIB' },
-    8: EMPTY, 9: EMPTY, 10: EMPTY, 11: EMPTY, 12: EMPTY,
+    8: EMPTY, 9: EMPTY, 10: EMPTY, 
+    11: { type: 'CLASS', label: '23N017', room: 'Q301' },
+    12: { type: 'CLASS', label: '23N020', room: 'Q301' },
   },
   Wednesday: {
     1: { type: 'FREE', label: 'LIB' },

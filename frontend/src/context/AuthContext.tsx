@@ -6,6 +6,7 @@ interface AuthState {
   user: AuthUser | null;
   loading: boolean;
   login: (username: string, password: string) => Promise<AuthUser>;
+  loginWithToken: (token: string, user: AuthUser) => void;
   logout: () => Promise<void>;
 }
 
@@ -42,7 +43,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
-  return <AuthContext.Provider value={{ user, loading, login, logout }}>{children}</AuthContext.Provider>;
+  const loginWithToken = useCallback((token: string, user: AuthUser) => {
+    setToken(token);
+    setUser(user);
+  }, []);
+
+  return <AuthContext.Provider value={{ user, loading, login, loginWithToken, logout }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthState {

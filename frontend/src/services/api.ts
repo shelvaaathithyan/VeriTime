@@ -153,6 +153,9 @@ export const lateArrivalApi = {
 
 // Explanations
 export const explanationApi = {
+  getDetails: (checkinId: string) =>
+    request<import('../types').MyLateCheckinsResponse>(`/explanations/${checkinId}`),
+
   submit: (data: {
     checkinId: string;
     reason: string;

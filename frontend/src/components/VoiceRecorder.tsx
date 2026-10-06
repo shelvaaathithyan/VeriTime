@@ -107,49 +107,89 @@ export default function VoiceRecorder({ onChange, disabled }: Props) {
   const timeLabel = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
   return (
-    <div className="rounded-lg border border-navy-200 bg-navy-50 p-5 text-center">
+    <div className="rounded-2xl bg-white p-8 text-center transition-colors min-h-[220px] flex flex-col justify-center">
       {state === 'idle' && (
-        <>
-          <button
-            type="button"
-            onClick={startRecording}
-            disabled={disabled}
-            className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-600 text-white shadow hover:bg-red-700 disabled:opacity-50"
-            aria-label="Start recording"
-          >
-            <Mic size={26} />
-          </button>
-          <p className="mt-3 text-sm text-navy-600">Tap to record. Explain in your own words why you were late.</p>
-        </>
+        <div className="animate-in fade-in zoom-in duration-200">
+          <div className="relative inline-flex items-center justify-center mb-5">
+            <div className="absolute inset-0 bg-blue-50 rounded-full scale-150"></div>
+            <button
+              type="button"
+              onClick={startRecording}
+              disabled={disabled}
+              className="relative flex h-20 w-20 items-center justify-center rounded-full bg-blue-600 text-white hover:bg-blue-700 hover:scale-105 shadow-[0_8px_20px_rgba(37,99,235,0.2)] disabled:opacity-50 transition-all z-10"
+              aria-label="Start recording"
+            >
+              <Mic size={32} />
+            </button>
+          </div>
+          <p className="text-[15px] font-bold text-slate-800 mb-1">Tap to record</p>
+          <p className="text-sm text-slate-500">Speak naturally.<br/>We'll convert your voice to text.</p>
+        </div>
       )}
 
       {state === 'recording' && (
-        <>
-          <button
-            type="button"
-            onClick={stopRecording}
-            className="mx-auto flex h-16 w-16 animate-pulse items-center justify-center rounded-full bg-red-600 text-white shadow"
-            aria-label="Stop recording"
-          >
-            <Square size={22} fill="currentColor" />
-          </button>
-          <p className="mt-3 font-mono text-sm font-semibold text-red-600">Recording {timeLabel}</p>
-          <p className="text-xs text-navy-400">Tap to stop (max {MAX_SECONDS / 60} minutes)</p>
-        </>
+        <div className="animate-in fade-in zoom-in duration-200">
+          <div className="flex items-center justify-center gap-2 text-red-500 font-bold text-sm tracking-widest uppercase mb-4">
+            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
+            Recording...
+          </div>
+          
+          {/* Visual Waveform */}
+          <div className="flex items-center justify-center gap-1 h-12 mb-6 opacity-80">
+            {[...Array(11)].map((_, i) => (
+              <div 
+                key={i} 
+                className="w-1.5 bg-blue-500 rounded-full animate-pulse"
+                style={{
+                  height: `${Math.max(20, Math.random() * 100)}%`,
+                  animationDuration: `${0.5 + Math.random() * 0.5}s`
+                }}
+              ></div>
+            ))}
+          </div>
+
+          <div className="relative inline-flex flex-col items-center justify-center">
+            <button
+              type="button"
+              onClick={stopRecording}
+              className="relative flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-800 border border-slate-200 hover:bg-slate-200 z-10 hover:scale-95 transition-all shadow-sm mb-3"
+              aria-label="Stop recording"
+            >
+              <Square size={20} fill="currentColor" className="text-red-500" />
+            </button>
+            <p className="font-mono text-xl font-bold text-slate-800 mb-1">{timeLabel}</p>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Tap to stop</p>
+          </div>
+        </div>
       )}
 
-      {state === 'processing' && <p className="text-sm text-navy-600">Preparing recording…</p>}
+      {state === 'processing' && (
+        <div className="flex flex-col items-center justify-center gap-4">
+          <div className="w-6 h-6 border-2 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
+          <p className="text-[15px] font-medium text-slate-600">Preparing recording…</p>
+        </div>
+      )}
 
       {state === 'recorded' && audioUrl && (
-        <div className="space-y-3">
-          <audio controls src={audioUrl} className="w-full" />
-          <button type="button" onClick={reset} disabled={disabled} className="btn-secondary mx-auto">
-            <RotateCcw size={14} /> Record again
+        <div className="space-y-6 animate-in fade-in duration-200 w-full max-w-sm mx-auto">
+          <div className="flex flex-col items-center gap-2 mb-2">
+            <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-1">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7"></path></svg>
+            </div>
+            <p className="text-[15px] font-bold text-slate-800">Explanation recorded</p>
+          </div>
+          
+          <div className="rounded-xl overflow-hidden bg-slate-50 border border-slate-200 p-2 shadow-sm">
+            <audio controls src={audioUrl} className="w-full h-10 outline-none" />
+          </div>
+          
+          <button type="button" onClick={reset} disabled={disabled} className="mx-auto flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-600 text-sm font-semibold rounded-xl hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-sm">
+            <RotateCcw size={16} /> Re-record
           </button>
         </div>
       )}
 
-      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-4 text-sm font-medium text-red-600 bg-red-50 p-3 rounded-xl">{error}</p>}
     </div>
   );
 }

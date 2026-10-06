@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DoorOpen, AlertCircle } from 'lucide-react';
+import { QRCodeCanvas } from 'qrcode.react';
 import { studentApi, teacherApi } from '../services/api';
 import { Student, TimetableSlot } from '../types';
 import { formatScheduledTime } from '../utils/formatters';
@@ -162,12 +163,23 @@ export default function ScanSimulator() {
                   )}
                   {entry.result.isLate && (
                     <div className="mt-2 rounded border border-orange-200 bg-white p-2">
-                      <div className="text-xs text-navy-500 mb-1">
-                        Open this in a private/incognito window or on a phone and sign in as{' '}
-                        <span className="font-mono font-semibold">{entry.result.studentId}</span> / veritime123
-                        {entry.result.entryDenied ? ' — they will see that entry was refused:' : ` — ${entry.result.statementWindowMinutes} min to record:`}
+                      <div className="flex flex-col items-center py-4 space-y-4">
+                        <p className="text-sm font-semibold text-navy-800 text-center">
+                          Scan to provide your explanation
+                        </p>
+                        <QRCodeCanvas 
+                          value={studentLink(entry.result.checkinId)} 
+                          size={160} 
+                          bgColor="#ffffff"
+                          fgColor="#000000"
+                          level="M"
+                          includeMargin={false}
+                        />
+                        <p className="text-xs text-navy-500 text-center max-w-[200px]">
+                          {entry.result.statementWindowMinutes} mins left to scan this QR code with your phone.
+                        </p>
                       </div>
-                      <code className="block text-xs break-all select-all text-navy-800">{studentLink(entry.result.checkinId)}</code>
+                      <code className="block mt-4 text-xs break-all select-all text-navy-400 text-center">{studentLink(entry.result.checkinId)}</code>
                     </div>
                   )}
                 </>

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { nfcLookup, nfcRegister, getCredentials } from '../controllers/nfcController';
 import {
   createCheckin, getCheckins, getLateArrivals, getLateArrivalEvidence, getMyLateCheckins,
-  submitExplanation, submitStatement, submitTeacherDecision, getStudents, getStudentById, getDashboard, createStudent
+  submitExplanation, submitStatement, submitTeacherDecision, getStudents, getStudentById, getDashboard, createStudent, getExplanationDetails
 } from '../controllers/checkinController';
 import { loginHandler, logoutHandler, meHandler } from '../controllers/authController';
 import { simulateArrival } from '../controllers/simulatorController';
@@ -24,11 +24,12 @@ router.post('/nfc/register', nfcRegister);
 router.post('/checkins', (req, res, next) => { createCheckin(req, res).catch(next); });
 router.post('/students', createStudent);
 
-// Student (logged in): own late arrivals and explanations
-router.get('/me/late-checkins', studentOnly, getMyLateCheckins);
-router.post('/explanations', studentOnly, submitExplanation);
+// Student (no login required, capability URL based on checkinId)
+router.get('/me/late-checkins', studentOnly, getMyLateCheckins); // keep auth for viewing history
+router.get('/explanations/:checkinId', (req, res, next) => { getExplanationDetails(req, res).catch(next); });
+router.post('/explanations', submitExplanation);
 // Spoken (audio) or typed free-text explanation, transcribed and analysed by Gemini
-router.post('/explanations/statement', studentOnly, (req, res, next) => { submitStatement(req, res).catch(next); });
+router.post('/explanations/statement', (req, res, next) => { submitStatement(req, res).catch(next); });
 
 // Teacher (logged in)
 router.get('/nfc/credentials', teacherOnly, getCredentials);

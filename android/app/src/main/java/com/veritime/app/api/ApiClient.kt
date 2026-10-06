@@ -25,7 +25,7 @@ object ApiClient {
 
     // ⚠️ For physical device testing: replace with your machine's local IP (e.g., http://192.168.1.100:5001)
     // For Android emulator: use http://10.253.186.11:5001
-    var BASE_URL = "http://10.253.186.11:5001"
+    var BASE_URL = "http://192.168.1.36:5001"
 
     private val JSON = "application/json; charset=utf-8".toMediaType()
     private val gson = Gson()
