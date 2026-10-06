@@ -9,6 +9,11 @@ import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.RadioButton
+import android.widget.RadioGroup
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.veritime.app.R
@@ -17,7 +22,11 @@ import com.veritime.app.databinding.ActivityMainBinding
 import com.veritime.app.model.NfcCardData
 import com.veritime.app.model.NfcLookupResponse
 import com.veritime.app.nfc.NfcCardReader
+import com.veritime.app.util.DeviceSettings
+import com.veritime.app.util.QrCode
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -43,10 +52,16 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
     private var detectedCardData: NfcCardData? = null
     private var lookupResponse: NfcLookupResponse? = null
     private var checkinTimestamp: String? = null
+    private lateinit var settings: DeviceSettings
+    private var autoResetJob: Job? = null
 
     companion object {
         private const val TAG = "VeriTime-Main"
-        private val ISO_TS = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
+        // Includes the timezone offset so the server reads the time correctly
+        private val ISO_TS = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US)
+        // Classroom mode runs unattended: return to the ready screen automatically
+        private const val RESET_AFTER_ON_TIME_MS = 4_000L
+        private const val RESET_AFTER_LATE_MS = 60_000L
         private val DISPLAY_TS = SimpleDateFormat("hh:mm a", Locale.US)
     }
 
@@ -57,8 +72,11 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
         setSupportActionBar(binding.toolbar)
 
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
+        settings = DeviceSettings(this)
+        updateModeBanner()
 
         checkNfcStatus()
+        if (settings.isClassroom && settings.room.isBlank()) showDeviceModeDialog()
 
         binding.btnRecordCheckin.setOnClickListener {
             recordCheckin()
@@ -116,6 +134,8 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
         try {
             val cardData = NfcCardReader.readCard(tag)
             runOnUiThread {
+                autoResetJob?.cancel()
+                resetToReady()
                 detectedCardData = cardData
                 showCardDetected(cardData)
                 lookupStudent(cardData)
@@ -134,12 +154,14 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
 
         lifecycleScope.launch {
             try {
-                val response = ApiClient.lookupNfcCard(cardData.identifier)
+                val response = ApiClient.lookupNfcCard(cardData.identifier, settings.mode)
                 lookupResponse = response
 
                 withContext(Dispatchers.Main) {
                     if (response.registered && response.student != null) {
                         showStudentFound(cardData, response)
+                        // No guard at the classroom door — record the tap straight away
+                        if (settings.isClassroom) recordCheckin()
                     } else {
                         showUnknownCard(response.message)
                     }
@@ -168,8 +190,10 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
                     cardIdentifier = card.identifier,
                     studentId = student.id,
                     timestamp = ts,
-                    readerId = "SECURITY_PHONE_01",
-                    location = "Main Gate"
+                    readerId = settings.readerId,
+                    location = settings.location,
+                    checkpoint = settings.mode,
+                    room = if (settings.isClassroom) settings.room else null
                 )
 
                 withContext(Dispatchers.Main) {
@@ -199,11 +223,15 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
             statusIcon.setImageResource(R.drawable.ic_nfc_ready)
             statusTitle.text = "NFC READY"
             statusTitle.setTextColor(getColor(R.color.navy_600))
-            statusSubtitle.text = "Tap student's college ID card on this phone"
+            statusSubtitle.text = if (settings.isClassroom)
+                "Tap your college ID card to enter ${settings.room.ifBlank { "class" }}"
+            else
+                "Tap student's college ID card on this phone"
             statusSubtitle.visibility = View.VISIBLE
             cardInfo.visibility = View.GONE
             studentInfo.visibility = View.GONE
             checkinSuccess.visibility = View.GONE
+            qrSection.visibility = View.GONE
             btnRecordCheckin.visibility = View.GONE
             btnReset.visibility = View.GONE
             progressIndicator.visibility = View.GONE
@@ -259,6 +287,10 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
                 tvLateByLabel.text = "Late by"
             } else {
                 when (response.scheduleStatus) {
+                    "CAMPUS_ENTRY" -> {
+                        tvLateBy.text = "Campus entry"
+                        tvLateBy.setTextColor(getColor(R.color.navy_500))
+                    }
                     "FREE_PERIOD" -> {
                         tvLateBy.text = "Free Period"
                         tvLateBy.setTextColor(getColor(R.color.navy_500))
@@ -329,17 +361,80 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
                 tvSuccessLate.text = "$lateMin minutes"
             } else {
                 when (result.scheduleStatus) {
+                    "CAMPUS_ENTRY" -> tvSuccessLate.text = "Entered campus"
                     "FREE_PERIOD" -> tvSuccessLate.text = "Free Period"
                     "NO_SCHEDULED_CLASS" -> tvSuccessLate.text = "No Class"
                     "DAY_SCHEDULE_COMPLETE" -> tvSuccessLate.text = "Schedule Done"
                     else -> tvSuccessLate.text = "On time"
                 }
             }
-            tvSuccessLocation.text = result.location ?: "Main Gate"
-            tvSuccessReader.text = result.readerId ?: "SECURITY_PHONE_01"
+            tvSuccessLocation.text = result.location ?: settings.location
+            tvSuccessReader.text = result.readerId ?: settings.readerId
+
+            // Late to class: show a QR code the student scans to record their explanation
+            val url = result.explanationUrl
+            if (result.isLate == true && url != null) {
+                qrSection.visibility = View.VISIBLE
+                ivQrCode.setImageBitmap(QrCode.create(url))
+                val minutes = result.statementWindowMinutes ?: 10
+                tvQrHint.text = "Scan with your phone camera and record your explanation within $minutes minutes"
+            } else {
+                qrSection.visibility = View.GONE
+            }
 
             btnReset.visibility = View.VISIBLE
         }
+
+        if (settings.isClassroom) {
+            autoResetJob?.cancel()
+            autoResetJob = lifecycleScope.launch {
+                delay(if (result.isLate == true) RESET_AFTER_LATE_MS else RESET_AFTER_ON_TIME_MS)
+                resetToReady()
+            }
+        }
+    }
+
+    private fun updateModeBanner() {
+        binding.toolbar.subtitle = if (settings.isClassroom)
+            "Classroom ${settings.room.ifBlank { "(room not set)" }}"
+        else
+            "Gate — campus entry"
+    }
+
+    private fun showDeviceModeDialog() {
+        val padding = (20 * resources.displayMetrics.density).toInt()
+        val gateOption = RadioButton(this).apply { id = View.generateViewId(); text = "Gate (records campus entry)" }
+        val classOption = RadioButton(this).apply { id = View.generateViewId(); text = "Classroom door (decides lateness)" }
+        val group = RadioGroup(this).apply {
+            addView(gateOption)
+            addView(classOption)
+            check(if (settings.isClassroom) classOption.id else gateOption.id)
+        }
+        val roomInput = EditText(this).apply {
+            hint = "Room, e.g. Q301"
+            setText(settings.room)
+            isEnabled = settings.isClassroom
+        }
+        group.setOnCheckedChangeListener { _, checkedId -> roomInput.isEnabled = checkedId == classOption.id }
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(padding, padding / 2, padding, 0)
+            addView(group)
+            addView(roomInput)
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Where is this phone?")
+            .setView(layout)
+            .setPositiveButton("Save") { _, _ ->
+                settings.mode = if (group.checkedRadioButtonId == classOption.id)
+                    DeviceSettings.MODE_CLASSROOM else DeviceSettings.MODE_GATE
+                if (settings.isClassroom) settings.room = roomInput.text.toString()
+                updateModeBanner()
+                resetToReady()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun showError(message: String) {
@@ -376,6 +471,10 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            R.id.action_device_mode -> {
+                showDeviceModeDialog()
+                true
+            }
             R.id.action_register -> {
                 startActivity(Intent(this, RegisterCredentialActivity::class.java).apply {
                     detectedCardData?.let { putExtra("lastCardIdentifier", it.identifier) }

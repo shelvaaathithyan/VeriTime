@@ -7,10 +7,10 @@ const app = express();
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000', 'http://10.0.2.2:5000'],
+  origin: ['http://localhost:5173', 'http://localhost:3000', 'http://10.0.2.2:5001'],
   credentials: true,
 }));
-app.use(express.json());
+app.use(express.json({ limit: '15mb' })); // voice explanations are sent as base64 audio
 
 // Request logger
 app.use((req, _res, next) => {

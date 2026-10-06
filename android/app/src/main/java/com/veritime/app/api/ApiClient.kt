@@ -18,14 +18,14 @@ import java.util.concurrent.TimeUnit
  * API client for VeriTime backend.
  * Change BASE_URL to match your local machine's IP when testing from Android emulator or physical device.
  *
- * Emulator: http://10.0.2.2:5000
- * Physical device on same WiFi: http://<your-machine-ip>:5000
+ * Emulator: http://10.0.2.2:5001
+ * Physical device on same WiFi: http://<your-machine-ip>:5001
  */
 object ApiClient {
 
-    // ⚠️ For physical device testing: replace with your machine's local IP (e.g., http://192.168.1.100:5000)
-    // For Android emulator: use http://10.0.2.2:5000
-    var BASE_URL = "http://192.168.1.36:5000"
+    // ⚠️ For physical device testing: replace with your machine's local IP (e.g., http://192.168.1.100:5001)
+    // For Android emulator: use http://10.0.2.2:5001
+    var BASE_URL = "http://192.168.0.104:5001"
 
     private val JSON = "application/json; charset=utf-8".toMediaType()
     private val gson = Gson()
@@ -41,8 +41,11 @@ object ApiClient {
      * Looks up a student by their NFC card identifier.
      * Only the identifier legitimately exposed by the card is sent.
      */
-    suspend fun lookupNfcCard(cardIdentifier: String): NfcLookupResponse = withContext(Dispatchers.IO) {
-        val body = JsonObject().apply { addProperty("cardIdentifier", cardIdentifier) }
+    suspend fun lookupNfcCard(cardIdentifier: String, checkpoint: String): NfcLookupResponse = withContext(Dispatchers.IO) {
+        val body = JsonObject().apply {
+            addProperty("cardIdentifier", cardIdentifier)
+            addProperty("checkpoint", checkpoint)
+        }
         val request = Request.Builder()
             .url("$BASE_URL/api/nfc/lookup")
             .post(gson.toJson(body).toRequestBody(JSON))
@@ -68,8 +71,10 @@ object ApiClient {
         cardIdentifier: String,
         studentId: String,
         timestamp: String,
-        readerId: String = "SECURITY_PHONE_01",
-        location: String = "Main Gate"
+        readerId: String,
+        location: String,
+        checkpoint: String,      // "GATE" records campus entry; "CLASSROOM" decides lateness
+        room: String? = null
     ): CheckinResponse = withContext(Dispatchers.IO) {
         val body = JsonObject().apply {
             addProperty("cardIdentifier", cardIdentifier)
@@ -77,6 +82,8 @@ object ApiClient {
             addProperty("timestamp", timestamp)
             addProperty("readerId", readerId)
             addProperty("location", location)
+            addProperty("checkpoint", checkpoint)
+            room?.let { addProperty("room", it) }
         }
         val request = Request.Builder()
             .url("$BASE_URL/api/checkins")

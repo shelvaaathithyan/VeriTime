@@ -1,37 +1,41 @@
 import { Router } from 'express';
 import { nfcLookup, nfcRegister, getCredentials } from '../controllers/nfcController';
 import {
-  createCheckin, getCheckins, getLateArrivals, getLateArrivalEvidence,
-  submitExplanation, submitTeacherDecision, getStudents, getStudentById, getDashboard, createStudent
+  createCheckin, getCheckins, getLateArrivals, getLateArrivalEvidence, getMyLateCheckins,
+  submitExplanation, submitStatement, submitTeacherDecision, getStudents, getStudentById, getDashboard, createStudent
 } from '../controllers/checkinController';
+import { loginHandler, logoutHandler, meHandler } from '../controllers/authController';
+import { requireAuth } from '../services/authService';
 
 const router = Router();
+const teacherOnly = requireAuth('TEACHER');
+const studentOnly = requireAuth('STUDENT');
 
-// NFC routes
+// Auth
+router.post('/auth/login', loginHandler);
+router.post('/auth/logout', logoutHandler);
+router.get('/auth/me', requireAuth(), meHandler);
+
+// Security guard's Android app — no login on the gate device
 router.post('/nfc/lookup', nfcLookup);
 router.post('/nfc/register', nfcRegister);
-router.get('/nfc/credentials', getCredentials);
-
-// Checkin routes
-router.post('/checkins', createCheckin);
-router.get('/checkins', getCheckins);
-
-// Late arrivals
-router.get('/late-arrivals', getLateArrivals);
-router.get('/late-arrivals/:id/evidence', getLateArrivalEvidence);
-
-// Explanations
-router.post('/explanations', submitExplanation);
-
-// Teacher decision
-router.post('/teacher-decision', submitTeacherDecision);
-
-// Students
-router.get('/students', getStudents);
+router.post('/checkins', (req, res, next) => { createCheckin(req, res).catch(next); });
 router.post('/students', createStudent);
-router.get('/students/:id', getStudentById);
 
-// Dashboard
-router.get('/dashboard', getDashboard);
+// Student (logged in): own late arrivals and explanations
+router.get('/me/late-checkins', studentOnly, getMyLateCheckins);
+router.post('/explanations', studentOnly, submitExplanation);
+// Spoken (audio) or typed free-text explanation, transcribed and analysed by Gemini
+router.post('/explanations/statement', studentOnly, (req, res, next) => { submitStatement(req, res).catch(next); });
+
+// Teacher (logged in)
+router.get('/nfc/credentials', teacherOnly, getCredentials);
+router.get('/checkins', teacherOnly, getCheckins);
+router.get('/late-arrivals', teacherOnly, getLateArrivals);
+router.get('/late-arrivals/:id/evidence', teacherOnly, getLateArrivalEvidence);
+router.post('/teacher-decision', teacherOnly, submitTeacherDecision);
+router.get('/students', teacherOnly, getStudents);
+router.get('/students/:id', teacherOnly, getStudentById);
+router.get('/dashboard', teacherOnly, getDashboard);
 
 export default router;

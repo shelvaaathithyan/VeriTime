@@ -27,58 +27,75 @@ const PERIODS = [
 ];
 
 type TimetableEntry = { type: 'CLASS' | 'FREE' | 'EMPTY'; label?: string; room?: string };
+
+// BE CSE (AI & ML), Semester 7 — shared by all students
+export const COURSES: Record<string, { title: string; staff: string[] }> = {
+  '23N003': { title: 'Recommender Systems', staff: ['Saranya K G'] },
+  '23N014': { title: 'Cloud Computing', staff: ['Anne Merin Mathew'] },
+  '23N017': { title: 'Computer Vision', staff: ['Archana K'] },
+  '23N020': { title: 'Generative AI', staff: ['Anaswara C'] },
+  '23N701': { title: 'Big Data and Advanced Database Systems', staff: ['Thirumahal R'] },
+  '23NO02': { title: 'Design Thinking', staff: ['Adlene Anusha J'] },
+  '23N710': { title: 'Big Data and Advanced Database Systems Laboratory', staff: ['Karthika L', 'Thirumahal R', 'Archana K', 'Viveka C'] },
+  '23N711': { title: 'Project Work - I', staff: ['Sathiyapriya K', 'Suriya S'] },
+  LIB: { title: 'Library', staff: ['Sathiyapriya K'] },
+  TWM: { title: 'Tutor Ward Meeting', staff: ['Sathiyapriya K'] },
+};
+
+const EMPTY: TimetableEntry = { type: 'EMPTY' };
+
 const TIMETABLE: Record<string, Record<number, TimetableEntry>> = {
   Monday: {
     1: { type: 'FREE', label: 'LIB' },
-    2: { type: 'FREE', label: 'TWM', room: 'Q305' },
-    3: { type: 'CLASS', label: '23N020', room: 'Q305' },
-    4: { type: 'CLASS', label: '23N017', room: 'Q305' },
+    2: { type: 'FREE', label: 'TWM', room: 'Q301' },
+    3: { type: 'CLASS', label: '23N020', room: 'Q301' },
+    4: { type: 'CLASS', label: '23N017', room: 'Q301' },
     5: { type: 'CLASS', label: '23N711' },
     6: { type: 'CLASS', label: '23N711' },
     7: { type: 'CLASS', label: '23N711' },
     8: { type: 'CLASS', label: '23N711' },
-    9: { type: 'EMPTY' }, 10: { type: 'EMPTY' }, 11: { type: 'EMPTY' }, 12: { type: 'EMPTY' },
+    9: EMPTY, 10: EMPTY, 11: EMPTY, 12: EMPTY,
   },
   Tuesday: {
     1: { type: 'FREE', label: 'LIB' },
-    2: { type: 'CLASS', label: '23N701', room: 'Y302' },
+    2: { type: 'CLASS', label: '23N701', room: 'Y202' },
     3: { type: 'CLASS', label: '23N003', room: 'Y202' },
     4: { type: 'CLASS', label: '23N003', room: 'Y202' },
-    5: { type: 'CLASS', label: '23N014', room: 'Q303' },
-    6: { type: 'CLASS', label: '23N020', room: 'Q303' },
+    5: { type: 'CLASS', label: '23N014', room: 'Q301' },
+    6: { type: 'CLASS', label: '23N020', room: 'Q301' },
     7: { type: 'FREE', label: 'LIB' },
-    8: { type: 'EMPTY' }, 9: { type: 'EMPTY' }, 10: { type: 'EMPTY' }, 11: { type: 'EMPTY' }, 12: { type: 'EMPTY' },
+    8: EMPTY, 9: EMPTY, 10: EMPTY, 11: EMPTY, 12: EMPTY,
   },
   Wednesday: {
     1: { type: 'FREE', label: 'LIB' },
-    2: { type: 'CLASS', label: '23N014', room: 'Y400' },
-    3: { type: 'CLASS', label: '23N017', room: 'Y402' },
+    2: { type: 'CLASS', label: '23N014', room: 'Q301' },
+    3: { type: 'CLASS', label: '23N017', room: 'Q301' },
     4: { type: 'FREE', label: 'LIB' },
-    5: { type: 'CLASS', label: '23N002', room: 'Q303' },
-    6: { type: 'CLASS', label: '23N002', room: 'Q303' },
+    5: { type: 'CLASS', label: '23NO02', room: 'Q301' },
+    6: { type: 'CLASS', label: '23NO02', room: 'Q301' },
     7: { type: 'FREE', label: 'LIB' },
-    8: { type: 'EMPTY' }, 9: { type: 'EMPTY' }, 10: { type: 'EMPTY' }, 11: { type: 'EMPTY' }, 12: { type: 'EMPTY' },
+    8: EMPTY, 9: EMPTY, 10: EMPTY, 11: EMPTY, 12: EMPTY,
   },
   Thursday: {
     1: { type: 'FREE', label: 'LIB' },
-    2: { type: 'CLASS', label: '23N701', room: 'G604' },
-    3: { type: 'CLASS', label: '23N014', room: 'Y304' },
+    2: { type: 'CLASS', label: '23N701', room: 'Q301' },
+    3: { type: 'CLASS', label: '23N014', room: 'Q301' },
     4: { type: 'FREE', label: 'LIB' },
     5: { type: 'CLASS', label: '23N710' },
     6: { type: 'CLASS', label: '23N710' },
     7: { type: 'CLASS', label: '23N710' },
     8: { type: 'CLASS', label: '23N710' },
-    9: { type: 'EMPTY' }, 10: { type: 'EMPTY' }, 11: { type: 'EMPTY' }, 12: { type: 'EMPTY' },
+    9: EMPTY, 10: EMPTY, 11: EMPTY, 12: EMPTY,
   },
   Friday: {
     1: { type: 'FREE', label: 'LIB' },
-    2: { type: 'CLASS', label: '23N017', room: 'A315' },
-    3: { type: 'CLASS', label: '23N002', room: 'Q306' },
-    4: { type: 'CLASS', label: '23N020', room: 'Q306' },
+    2: { type: 'CLASS', label: '23N017', room: 'Q301' },
+    3: { type: 'CLASS', label: '23NO02', room: 'Q301' },
+    4: { type: 'CLASS', label: '23N020', room: 'Q301' },
     5: { type: 'CLASS', label: '23N003', room: 'Y202' },
-    6: { type: 'CLASS', label: '23N701', room: 'Q302' },
+    6: { type: 'CLASS', label: '23N701', room: 'Y202' },
     7: { type: 'FREE', label: 'LIB' },
-    8: { type: 'EMPTY' }, 9: { type: 'EMPTY' }, 10: { type: 'EMPTY' }, 11: { type: 'EMPTY' }, 12: { type: 'EMPTY' },
+    8: EMPTY, 9: EMPTY, 10: EMPTY, 11: EMPTY, 12: EMPTY,
   },
 };
 

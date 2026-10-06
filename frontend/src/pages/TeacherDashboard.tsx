@@ -147,8 +147,10 @@ export default function TeacherDashboard() {
                       <span className="text-orange-600 font-medium">{a.late_minutes} min</span>
                     </td>
                     <td className="table-td text-sm text-navy-600">
-                      {a.reason ? getReasonLabel(a.reason) : (
-                        <span className="text-navy-300 italic">No explanation yet</span>
+                      {a.reason ? getReasonLabel(a.reason) : a.statement_missed ? (
+                        <span className="text-red-600 font-medium">No statement in time</span>
+                      ) : (
+                        <span className="text-navy-300 italic">Waiting for student</span>
                       )}
                     </td>
                     <td className="table-td">

@@ -9,6 +9,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 
 type StudentDetail = {
   id: string; name: string; department: string; student_type: string; email?: string;
+  home_area?: string;
   history: Array<{
     checkin_id: string; timestamp: string; scheduled_time: string;
     late_minutes: number; is_late: number; verification_status?: string; reason?: string;
@@ -66,6 +67,10 @@ export default function StudentProfile() {
           <div>
             <div className="text-[11px] font-bold text-navy-400 uppercase tracking-wider mb-1">Student Type</div>
             <div className="text-sm font-semibold text-navy-900">{student.student_type}</div>
+          </div>
+          <div>
+            <div className="text-[11px] font-bold text-navy-400 uppercase tracking-wider mb-1">Home Area</div>
+            <div className="text-sm font-semibold text-navy-900">{student.home_area || 'Not recorded'}</div>
           </div>
           <div>
             <div className="text-[11px] font-bold text-navy-400 uppercase tracking-wider mb-1">NFC Credential</div>
@@ -159,6 +164,8 @@ export default function StudentProfile() {
                       <td className="px-4 py-3 text-xs font-medium">
                         {h.is_late ? (
                           <span className="text-orange-600">Late {h.late_minutes}m</span>
+                        ) : h.schedule_status === 'CAMPUS_ENTRY' ? (
+                          <span className="text-navy-500">Entered campus</span>
                         ) : h.schedule_status === 'FREE_PERIOD' ? (
                           <span className="text-blue-600">Free Period</span>
                         ) : h.schedule_status === 'NO_SCHEDULED_CLASS' ? (

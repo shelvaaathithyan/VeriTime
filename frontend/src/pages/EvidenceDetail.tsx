@@ -7,7 +7,7 @@ import { lateArrivalApi, teacherDecisionApi } from '../services/api';
 import { LateArrivalEvidence, TeacherDecision } from '../types';
 import {
   formatTime, formatDate, formatScheduledTime, formatLateMinutes,
-  getReasonLabel, getVerificationLabel
+  getReasonLabel, getVerificationLabel, getEvidenceWeightColor
 } from '../utils/formatters';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -98,21 +98,35 @@ export default function EvidenceDetail() {
           </div>
           <ArrowRight className="text-navy-300 mx-3" size={20} />
           
+          <div className="bg-navy-50 border border-navy-200 rounded px-4 py-3 min-w-[140px] text-center shadow-sm">
+            <div className="text-[11px] text-navy-400 uppercase tracking-wide mb-1">Entered campus</div>
+            <div className="text-navy-900 font-mono">{data.checkin.gateEntryAt ? formatTime(data.checkin.gateEntryAt) : 'Not recorded'}</div>
+          </div>
+          <ArrowRight className="text-navy-300 mx-3" size={20} />
+
           <div className="bg-orange-50 border border-orange-200 rounded px-4 py-3 min-w-[140px] text-center shadow-sm">
-            <div className="text-[11px] text-orange-600 uppercase tracking-wide mb-1">NFC check-in</div>
+            <div className="text-[11px] text-orange-600 uppercase tracking-wide mb-1">Entered class{data.checkin.room ? ` (${data.checkin.room})` : ''}</div>
             <div className="text-orange-700 font-mono">{formatTime(data.checkin.timestamp)}</div>
           </div>
           <ArrowRight className="text-navy-300 mx-3" size={20} />
 
           <div className="bg-navy-50 border border-navy-200 rounded px-4 py-3 min-w-[140px] text-center shadow-sm">
             <div className="text-[11px] text-navy-400 uppercase tracking-wide mb-1">Explanation</div>
-            <div className="text-navy-900">{data.explanation ? getReasonLabel(data.explanation.reason) : 'None'}</div>
+            <div className={data.statementMissed ? 'text-red-600 font-semibold' : 'text-navy-900'}>
+              {data.explanation ? getReasonLabel(data.explanation.reason) : data.statementMissed ? 'None in time' : 'Waiting'}
+            </div>
           </div>
           <ArrowRight className="text-navy-300 mx-3" size={20} />
 
           <div className="bg-navy-50 border border-navy-200 rounded px-4 py-3 min-w-[140px] text-center shadow-sm">
             <div className="text-[11px] text-navy-400 uppercase tracking-wide mb-1">Context</div>
-            <div className="text-navy-900">{data.transport ? 'Transport delay' : data.weather?.severity !== 'NONE' ? 'Weather issue' : 'No issues'}</div>
+            <div className="text-navy-900">{
+              data.transport ? 'Transport delay'
+              : data.commute && data.commute.trafficDelayMinutes > 0 ? 'Heavy traffic'
+              : data.commute && data.commute.typicalMinutes >= 60 ? 'Long commute'
+              : data.weather && data.weather.severity !== 'NONE' ? 'Weather issue'
+              : 'No issues'
+            }</div>
           </div>
           <ArrowRight className="text-navy-300 mx-3" size={20} />
 
@@ -134,8 +148,15 @@ export default function EvidenceDetail() {
           <h2 className="text-[11px] font-bold text-navy-400 uppercase tracking-widest mb-3">Evidence Summary</h2>
           <div className="bg-white border border-navy-200 rounded-lg p-6 space-y-4 shadow-sm">
             <div className="flex justify-between border-b border-navy-50 pb-3">
-              <span className="text-sm font-semibold text-navy-600">Arrival timestamp</span>
-              <span className="text-sm font-mono font-medium text-navy-900">{formatTime(data.checkin.timestamp)}</span>
+              <span className="text-sm font-semibold text-navy-600">Entered campus (gate)</span>
+              <span className="text-sm font-mono font-medium text-navy-900">{data.checkin.gateEntryAt ? formatTime(data.checkin.gateEntryAt) : 'Not recorded'}</span>
+            </div>
+            <div className="flex justify-between border-b border-navy-50 pb-3">
+              <span className="text-sm font-semibold text-navy-600">Entered class</span>
+              <span className="text-sm font-mono font-medium text-navy-900">
+                {formatTime(data.checkin.timestamp)}
+                {data.checkin.clockAdjusted && <span className="ml-1 text-xs text-amber-600">(device clock was off — server time used)</span>}
+              </span>
             </div>
             <div className="flex justify-between border-b border-navy-50 pb-3">
               <span className="text-sm font-semibold text-navy-600">Scheduled class time</span>
@@ -147,20 +168,79 @@ export default function EvidenceDetail() {
             </div>
             <div className="flex justify-between border-b border-navy-50 pb-3">
               <span className="text-sm font-semibold text-navy-600">Student explanation</span>
-              <span className="text-sm font-medium text-navy-900">{data.explanation ? getReasonLabel(data.explanation.reason) : 'None'}</span>
+              <span className="text-sm font-medium text-navy-900">
+                {data.explanation ? getReasonLabel(data.explanation.reason) : 'None'}
+                {data.explanation?.inputMode === 'VOICE' && <span className="ml-1 text-xs text-navy-400">(spoken)</span>}
+                {data.explanation?.minutesAfterArrival != null && (
+                  <span className="ml-1 text-xs text-navy-400">· {data.explanation.minutesAfterArrival} min after arriving</span>
+                )}
+              </span>
             </div>
+            {data.statementMissed && (
+              <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
+                The student did not record an explanation within the time allowed after arriving.
+              </div>
+            )}
+            {data.explanation?.transcript && (
+              <div className="border-b border-navy-50 pb-3">
+                <div className="text-sm font-semibold text-navy-600 mb-1">
+                  {data.explanation.inputMode === 'VOICE' ? 'Transcript' : 'Written statement'}
+                </div>
+                <p className="text-sm text-navy-800 italic leading-relaxed">“{data.explanation.transcript}”</p>
+              </div>
+            )}
             <div className="flex justify-between border-b border-navy-50 pb-3">
               <span className="text-sm font-semibold text-navy-600">Transport information</span>
               <span className="text-sm font-medium text-navy-900">{data.transport ? `${data.transport.delay_minutes}m delay on ${data.transport.route}` : 'Normal'}</span>
             </div>
             <div className="flex justify-between border-b border-navy-50 pb-3">
+              <span className="text-sm font-semibold text-navy-600">Home area</span>
+              <span className="text-sm font-medium text-navy-900">{data.student.homeArea || 'Not recorded'}</span>
+            </div>
+            <div className="flex justify-between border-b border-navy-50 pb-3">
+              <span className="text-sm font-semibold text-navy-600">Commute to campus</span>
+              <span className="text-sm font-medium text-navy-900 text-right">
+                {data.commute
+                  ? `${data.commute.distanceKm} km · ${data.commute.typicalMinutes} min typical${data.commute.source === 'ESTIMATE' ? ' (estimated)' : ''}`
+                  : data.isFirstArrival ? 'Not measured' : 'Not applicable (not first class of the day)'}
+              </span>
+            </div>
+            {data.commute && (
+              <div className="flex justify-between border-b border-navy-50 pb-3">
+                <span className="text-sm font-semibold text-navy-600">Traffic at check-in</span>
+                <span className={`text-sm font-medium ${data.commute.trafficDelayMinutes > 0 ? 'text-orange-600' : 'text-navy-900'}`}>
+                  {data.commute.trafficDelayMinutes > 0
+                    ? `+${data.commute.trafficDelayMinutes} min (${data.commute.durationMinutes} min total)`
+                    : 'Normal'}
+                </span>
+              </div>
+            )}
+            <div className="flex justify-between border-b border-navy-50 pb-3">
               <span className="text-sm font-semibold text-navy-600">Weather information</span>
-              <span className="text-sm font-medium text-navy-900">{data.weather ? `${data.weather.condition} (${data.weather.severity})` : 'Normal'}</span>
+              <span className="text-sm font-medium text-navy-900">{data.weather
+                  ? `${data.weather.description || data.weather.condition} (${data.weather.severity.toLowerCase()})${data.weather.location ? ` · ${data.weather.location}` : ''}`
+                  : 'Not recorded'}</span>
             </div>
             <div className="pt-2 text-sm text-navy-700 bg-navy-50 p-3 rounded border border-navy-100">
               {data.verificationSummary || getVerificationLabel(data.verificationStatus)}
             </div>
           </div>
+
+          {data.evidence.length > 0 && (
+            <>
+              <h2 className="text-[11px] font-bold text-navy-400 uppercase tracking-widest mb-3 mt-8">Evidence Checks</h2>
+              <ul className="bg-white border border-navy-200 rounded-lg shadow-sm divide-y divide-navy-50">
+                {data.evidence.map((item, i) => (
+                  <li key={i} className="flex items-start justify-between gap-4 px-6 py-3">
+                    <span className="text-sm text-navy-800">{item.detail}</span>
+                    <span className={`text-[11px] font-bold uppercase tracking-wide shrink-0 ${getEvidenceWeightColor(item.weight)}`}>
+                      {item.weight === 'NONE' ? 'Not supported' : item.weight.toLowerCase()}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </div>
 
         {/* Teacher Decision */}

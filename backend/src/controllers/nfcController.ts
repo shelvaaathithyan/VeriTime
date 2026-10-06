@@ -5,7 +5,7 @@ import { calculateLateStatus } from '../services/timetableService';
 
 // POST /api/nfc/lookup
 export function nfcLookup(req: Request, res: Response): void {
-  const { cardIdentifier } = req.body;
+  const { cardIdentifier, checkpoint } = req.body;
   if (!cardIdentifier) {
     res.status(400).json({ error: 'cardIdentifier is required' });
     return;
@@ -33,7 +33,10 @@ export function nfcLookup(req: Request, res: Response): void {
   const now = new Date();
   const timestamp = now.toISOString();
   
-  const { isLate, lateMinutes, reason, scheduledStart, periodNumber, subjectCode } = calculateLateStatus(timestamp);
+  // Only classroom taps decide lateness; gate taps just record campus entry
+  const { isLate, lateMinutes, reason, scheduledStart, periodNumber, subjectCode } = checkpoint === 'CLASSROOM'
+    ? calculateLateStatus(timestamp)
+    : { isLate: false, lateMinutes: 0, reason: 'CAMPUS_ENTRY', scheduledStart: undefined, periodNumber: undefined, subjectCode: undefined };
   
   // Format current time for response in IST
   const optionsTime: Intl.DateTimeFormatOptions = { 
