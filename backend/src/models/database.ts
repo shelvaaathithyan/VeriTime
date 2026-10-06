@@ -80,7 +80,11 @@ export function initializeDatabase(): void {
       room TEXT,
       received_at TEXT,                 -- server clock when the tap arrived
       clock_adjusted INTEGER DEFAULT 0, -- 1 if the device clock was off and server time was used
-      gate_entry_at TEXT,               -- first gate tap that day, for classroom check-ins
+      gate_entry_at TEXT,               -- latest gate scan before this door scan (session-start classes only)
+      session_start TEXT,               -- 'FIRST_CLASS' | 'AFTER_LUNCH' | NULL (class between periods)
+      weather_readings TEXT,            -- JSON: weather at each point checked (home, campus)
+      class_day TEXT,                   -- weekday whose timetable applied (differs from the date only for simulated scans)
+      simulated INTEGER DEFAULT 0,      -- 1 if created by the scan simulator
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (student_id) REFERENCES students(id)
     );
@@ -125,6 +129,12 @@ export function initializeDatabase(): void {
       verification_summary TEXT,
       evidence_json TEXT,
       statement_deadline TEXT,          -- student must explain before this time
+      verdict TEXT,                     -- 'TRUE' | 'FALSE' | 'UNVERIFIED' — does the reason match the evidence?
+      attendance TEXT,                  -- 'GRANTED' | 'DENIED' | 'PENDING_REVIEW'
+      verdict_summary TEXT,             -- why, in one or two sentences
+      claims_json TEXT,                 -- each claim checked, with its verdict and reason
+      late_count_week INTEGER,          -- late door scans in the 7 days up to this one (including it)
+      checks_json TEXT,                 -- every data check that ran (Google Maps, weather, scans), shown to student and teacher
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (checkin_id) REFERENCES checkins(id)
     );
@@ -178,12 +188,27 @@ export function ensureStudentAccount(studentId: string, name: string): void {
   `).run(uuidv4(), studentId, hashPassword(demoPassword()), name, studentId);
 }
 
+// Teaching staff from the timetable
+const STAFF = [
+  'Saranya K G', 'Anne Merin Mathew', 'Archana K', 'Anaswara C', 'Thirumahal R',
+  'Adlene Anusha J', 'Karthika L', 'Viveka C', 'Sathiyapriya K', 'Suriya S',
+];
+
 function seedUserAccounts(): void {
   db.transaction(() => {
     db.prepare(`
       INSERT OR IGNORE INTO users (id, username, password_hash, role, name, student_id)
       VALUES (?, 'teacher', ?, 'TEACHER', 'Class Tutor', NULL)
     `).run(uuidv4(), hashPassword(demoPassword()));
+
+    // One login per staff member in the timetable (username = first name, lower case)
+    const insertStaff = db.prepare(`
+      INSERT OR IGNORE INTO users (id, username, password_hash, role, name, student_id)
+      VALUES (?, ?, ?, 'TEACHER', ?, NULL)
+    `);
+    for (const staffName of STAFF) {
+      insertStaff.run(uuidv4(), staffName.split(' ')[0].toLowerCase(), hashPassword(demoPassword()), staffName);
+    }
 
     const students = db.prepare(`
       SELECT s.id, s.name FROM students s LEFT JOIN users u ON u.student_id = s.id WHERE u.id IS NULL
@@ -223,8 +248,18 @@ function migrateColumns(): void {
   addColumnIfMissing('checkins', 'received_at', 'TEXT');
   addColumnIfMissing('checkins', 'clock_adjusted', 'INTEGER DEFAULT 0');
   addColumnIfMissing('checkins', 'gate_entry_at', 'TEXT');
+  addColumnIfMissing('checkins', 'session_start', 'TEXT');
+  addColumnIfMissing('checkins', 'class_day', 'TEXT');
+  addColumnIfMissing('checkins', 'weather_readings', 'TEXT');
+  addColumnIfMissing('late_arrivals', 'checks_json', 'TEXT');
+  addColumnIfMissing('late_arrivals', 'late_count_week', 'INTEGER');
+  addColumnIfMissing('checkins', 'simulated', 'INTEGER DEFAULT 0');
 
   addColumnIfMissing('late_arrivals', 'statement_deadline', 'TEXT');
+  addColumnIfMissing('late_arrivals', 'verdict', 'TEXT');
+  addColumnIfMissing('late_arrivals', 'attendance', 'TEXT');
+  addColumnIfMissing('late_arrivals', 'verdict_summary', 'TEXT');
+  addColumnIfMissing('late_arrivals', 'claims_json', 'TEXT');
   addColumnIfMissing('explanations', 'minutes_after_arrival', 'INTEGER');
 
   addColumnIfMissing('explanations', 'input_mode', "TEXT DEFAULT 'SELECTED'");

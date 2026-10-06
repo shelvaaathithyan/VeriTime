@@ -4,7 +4,7 @@ import { Shield, LogIn, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export function homePathFor(role: 'STUDENT' | 'TEACHER'): string {
-  return role === 'STUDENT' ? '/explanation' : '/';
+  return role === 'STUDENT' ? '/explanation' : '/classes';
 }
 
 export default function Login() {

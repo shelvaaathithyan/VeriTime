@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CheckCircle2, Clock, AlertCircle, Send, Mic, Keyboard, LogOut, Timer, Lock } from 'lucide-react';
+import { Clock, AlertCircle, Send, Mic, Keyboard, LogOut, Timer, Lock } from 'lucide-react';
 import { meApi, explanationApi } from '../services/api';
-import { MyLateCheckin } from '../types';
+import { MyLateCheckin, Verdict, CurrentClass } from '../types';
+import VerdictPanel from '../components/VerdictPanel';
 import { useAuth } from '../context/AuthContext';
-import { formatTime, formatScheduledTime, formatLateMinutes, getVerificationLabel, getReasonLabel } from '../utils/formatters';
+import { formatTime, formatScheduledTime, formatLateMinutes, getReasonLabel, getSessionStartLabel } from '../utils/formatters';
 import LoadingSpinner from '../components/LoadingSpinner';
 import VoiceRecorder, { VoiceRecording } from '../components/VoiceRecorder';
 
@@ -24,10 +25,9 @@ export default function StudentExplanation() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [result, setResult] = useState<{
-    verificationStatus: string;
-    verificationSummary: string;
     transcript: string;
     reason: string;
+    verdict: Verdict;
   } | null>(null);
 
   const hasStatement = mode === 'voice' ? !!recording : typedText.trim().length > 0;
@@ -36,6 +36,8 @@ export default function StudentExplanation() {
   const [clockOffsetMs, setClockOffsetMs] = useState(0);
   const [windowMinutes, setWindowMinutes] = useState(10);
   const [now, setNow] = useState(Date.now());
+  const [currentClass, setCurrentClass] = useState<CurrentClass | null>(null);
+  const [currentStatus, setCurrentStatus] = useState('');
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -44,19 +46,36 @@ export default function StudentExplanation() {
 
   const loadCheckins = () =>
     meApi.lateCheckins()
-      .then(({ serverTime, windowMinutes, checkins: rows }) => {
+      .then(({ serverTime, windowMinutes, currentClass, currentStatus, checkins: rows }) => {
         setClockOffsetMs(new Date(serverTime).getTime() - Date.now());
         setWindowMinutes(windowMinutes);
+        setCurrentClass(currentClass);
+        setCurrentStatus(currentStatus);
         setCheckins(rows);
         setSelectedCheckin((current) => {
           if (rows.some((r) => r.id === current)) return current;
-          // Default to the first late arrival that still needs an explanation
-          return (rows.find((r) => !r.reason) || rows[0])?.id || '';
+          // Students open this page right after their door scan: show the scan for the class happening now
+          return rows.find((r) => r.is_current_class)?.id || '';
         });
       })
       .finally(() => setLoading(false));
 
-  useEffect(() => { loadCheckins(); }, []);
+  // Refresh every 30 s so a scan made just now (or a class change) shows up without reloading
+  useEffect(() => {
+    loadCheckins();
+    const timer = window.setInterval(loadCheckins, 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const serverNow = new Date(now + clockOffsetMs);
+  const nowLabel = serverNow.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' }).toUpperCase();
+  const noClassLabel: Record<string, string> = {
+    FREE_PERIOD: 'Free period',
+    BREAK: 'Break between classes',
+    DAY_SCHEDULE_COMPLETE: 'Classes are over for today',
+    NO_SCHEDULED_CLASS: 'No class scheduled',
+  };
+  const currentScan = checkins.find((c) => c.is_current_class);
 
   const selectedCheckinData = checkins.find((c) => c.id === selectedCheckin);
   const alreadyExplained = !!selectedCheckinData?.reason;
@@ -64,7 +83,9 @@ export default function StudentExplanation() {
     ? new Date(selectedCheckinData.statement_deadline).getTime() - clockOffsetMs
     : null;
   const secondsLeft = deadlineMs === null ? null : Math.max(0, Math.floor((deadlineMs - now) / 1000));
-  const windowClosed = !alreadyExplained && secondsLeft === 0;
+  // Attendance already decided without a reason (e.g. late too many times this week)
+  const decidedWithoutReason = !alreadyExplained && !!selectedCheckinData?.verdict;
+  const windowClosed = !alreadyExplained && !decidedWithoutReason && secondsLeft === 0;
   const countdown = secondsLeft === null ? '' : `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, '0')}`;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -81,10 +102,9 @@ export default function StudentExplanation() {
           : { text: typedText.trim() }),
       });
       setResult({
-        verificationStatus: res.verificationStatus,
-        verificationSummary: res.verificationSummary,
         transcript: res.transcript,
         reason: res.reason,
+        verdict: { verdict: res.verdict, attendance: res.attendance, summary: res.verdictSummary, claims: res.claims, checks: res.checks },
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Submission failed';
@@ -97,20 +117,19 @@ export default function StudentExplanation() {
   if (loading) return <LoadingSpinner message="Loading..." />;
 
   if (result) {
-    const statusColor = {
-      SUPPORTED: 'border-emerald-300 bg-emerald-50 text-emerald-800',
-      PARTIALLY_SUPPORTED: 'border-amber-300 bg-amber-50 text-amber-800',
-      INCONSISTENT: 'border-red-200 bg-red-50 text-red-800',
-      UNABLE_TO_VERIFY: 'border-slate-200 bg-slate-50 text-slate-700',
-    }[result.verificationStatus] || 'border-slate-200 bg-slate-50 text-slate-700';
-
+    const { attendance } = result.verdict;
     return (
       <div className="p-4 sm:p-8 max-w-xl mx-auto w-full">
         <div className="card">
-          <div className="card-body text-center py-10">
-            <CheckCircle2 size={40} className="text-emerald-600 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-navy-900 mb-1 font-display">Explanation Submitted</h2>
-            <p className="text-sm text-navy-500 mb-6">Your explanation has been received and evaluated.</p>
+          <div className="card-body py-8">
+            <h2 className="text-xl font-bold text-navy-900 mb-1 font-display text-center">Explanation Checked</h2>
+            <p className={`text-base font-semibold mb-6 text-center ${
+              attendance === 'GRANTED' ? 'text-emerald-700' : attendance === 'DENIED' ? 'text-red-700' : 'text-navy-600'
+            }`}>
+              {attendance === 'GRANTED' ? 'Attendance granted. You may now enter the class.'
+                : attendance === 'DENIED' ? 'Attendance denied for this period.'
+                : 'You may enter the class. Your teacher will verify your attendance later.'}
+            </p>
 
             <div className="rounded-lg border border-navy-200 bg-navy-50 p-4 text-left mb-4">
               <div className="text-xs font-semibold uppercase tracking-wide text-navy-400 mb-1">What you said</div>
@@ -118,19 +137,17 @@ export default function StudentExplanation() {
               <div className="text-xs text-navy-500 mt-2">Understood as: <span className="font-semibold">{getReasonLabel(result.reason)}</span></div>
             </div>
 
-            <div className={`rounded-lg border p-4 text-left mb-6 ${statusColor}`}>
-              <div className="text-xs font-semibold uppercase tracking-wide mb-1">Verification Status</div>
-              <div className="text-lg font-bold mb-2">{getVerificationLabel(result.verificationStatus as any)}</div>
-              <p className="text-sm leading-relaxed">{result.verificationSummary}</p>
-            </div>
+            <div className="mb-6"><VerdictPanel verdict={result.verdict} /></div>
 
-            <p className="text-xs text-navy-400 mb-6">
-              This is a decision-support output. Your teacher will review this case and make the final decision.
+            <p className="text-xs text-navy-400 mb-6 text-center">
+              This result is stored with your attendance record. Your teacher can review and change it.
             </p>
 
-            <button onClick={() => { setResult(null); setRecording(null); setTypedText(''); loadCheckins(); }} className="btn-secondary">
-              Done
-            </button>
+            <div className="text-center">
+              <button onClick={() => { setResult(null); setRecording(null); setTypedText(''); loadCheckins(); }} className="btn-secondary">
+                Done
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -139,6 +156,26 @@ export default function StudentExplanation() {
 
   return (
     <div className="p-4 sm:p-8 max-w-xl mx-auto w-full">
+      {/* Live clock and the class happening right now */}
+      <div className="mb-4 rounded-lg bg-navy-900 text-white px-4 py-3 flex items-center justify-between gap-3">
+        <div>
+          <div className="text-[11px] uppercase tracking-wide text-navy-300">Now</div>
+          <div className="font-mono text-lg font-bold">{nowLabel}</div>
+        </div>
+        <div className="text-right">
+          {currentClass ? (
+            <>
+              <div className="text-sm font-semibold">Period {currentClass.period} · {currentClass.classCode}</div>
+              <div className="text-xs text-navy-300">
+                {currentClass.courseTitle}{currentClass.room ? ` · ${currentClass.room}` : ''} · {formatScheduledTime(currentClass.start)}–{formatScheduledTime(currentClass.end)}
+              </div>
+            </>
+          ) : (
+            <div className="text-sm text-navy-200">{noClassLabel[currentStatus] || 'No class right now'}</div>
+          )}
+        </div>
+      </div>
+
       <div className="flex items-center justify-between mb-6 text-sm">
         <span className="text-navy-600">Signed in as <span className="font-semibold text-navy-900">{user?.name}</span> ({user?.username})</span>
         <button onClick={logout} className="flex items-center gap-1 text-navy-500 hover:text-navy-800">
@@ -155,7 +192,7 @@ export default function StudentExplanation() {
       {selectedCheckinData && (
         <div className="card mb-6 border-orange-200 bg-orange-50">
           <div className="card-body">
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-4 text-center">
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-4 text-center">
               <div>
                 <div className="text-xs text-navy-400 mb-1">Date</div>
                 <div className="font-mono font-bold text-navy-800">
@@ -174,8 +211,16 @@ export default function StudentExplanation() {
                   {formatScheduledTime(selectedCheckinData.scheduled_time)}
                 </div>
               </div>
+              {selectedCheckinData.session_start && (
+                <div>
+                  <div className="text-xs text-navy-400 mb-1">Gate scan</div>
+                  <div className={`font-mono font-bold ${selectedCheckinData.gate_entry_at ? 'text-navy-800' : 'text-amber-600 text-xs'}`}>
+                    {selectedCheckinData.gate_entry_at ? formatTime(selectedCheckinData.gate_entry_at) : 'Not scanned'}
+                  </div>
+                </div>
+              )}
               <div>
-                <div className="text-xs text-navy-400 mb-1">Arrived</div>
+                <div className="text-xs text-navy-400 mb-1">Door scan</div>
                 <div className="font-mono font-bold text-orange-600">
                   {formatTime(selectedCheckinData.timestamp)}
                 </div>
@@ -188,49 +233,87 @@ export default function StudentExplanation() {
                 </div>
               </div>
             </div>
+            {(getSessionStartLabel(selectedCheckinData.session_start) || selectedCheckinData.simulated) && (
+              <div className="mt-3 text-center text-xs text-navy-500">
+                {selectedCheckinData.simulated ? `Simulated · ${selectedCheckinData.class_day} Period ${selectedCheckinData.period}` : ''}
+                {selectedCheckinData.simulated && getSessionStartLabel(selectedCheckinData.session_start) ? ' · ' : ''}
+                {getSessionStartLabel(selectedCheckinData.session_start)}
+              </div>
+            )}
           </div>
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="card">
         <div className="card-body space-y-5">
-          {/* Check-in selector */}
+          {/* Which door scan this is about — the current class's scan by default */}
           <div>
-            <label className="form-label" htmlFor="select-checkin">Late Arrival Record</label>
-            {checkins.length === 0 ? (
-              <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-3 py-2">
-                <CheckCircle2 size={14} />
-                You have no late arrivals today.
+            {!currentScan && (
+              <div className="flex items-start gap-2 text-sm text-navy-700 bg-navy-50 border border-navy-200 rounded px-3 py-2 mb-3">
+                <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                <span>
+                  {currentClass
+                    ? `You have no late door scan for the current class (Period ${currentClass.period}, ${currentClass.classCode}). If you were just marked late, wait a few seconds or check that your card scanned at the class door.`
+                    : 'There is no class running right now, so there is nothing to explain.'}
+                </span>
               </div>
-            ) : (
-              <select
-                id="select-checkin"
-                className="form-input"
-                value={selectedCheckin}
-                onChange={(e) => setSelectedCheckin(e.target.value)}
-              >
-                {checkins.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.class_code ? `${c.class_code} · ` : ''}Arrived {formatTime(c.timestamp)} — {formatLateMinutes(c.late_minutes)} late{c.reason ? ' (submitted)' : ''}
-                  </option>
-                ))}
-              </select>
+            )}
+            {checkins.length > 0 && (
+              <>
+                <label className="form-label" htmlFor="select-checkin">
+                  {selectedCheckinData?.is_current_class ? 'Your door scan for this class' : 'Late door scans today'}
+                </label>
+                <select
+                  id="select-checkin"
+                  className="form-input"
+                  value={selectedCheckin}
+                  onChange={(e) => setSelectedCheckin(e.target.value)}
+                >
+                  {!selectedCheckin && <option value="">View an earlier scan…</option>}
+                  {checkins.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.is_current_class ? 'Now · ' : 'Earlier · '}{c.period ? `P${c.period} ` : ''}{c.class_code || ''} · scanned {formatTime(c.timestamp)}{c.reason ? ' (submitted)' : ''}
+                    </option>
+                  ))}
+                </select>
+                {selectedCheckinData && !selectedCheckinData.is_current_class && (
+                  <p className="text-xs text-amber-700 mt-1">This scan is from an earlier class, not the one happening now.</p>
+                )}
+              </>
             )}
           </div>
 
           {alreadyExplained && selectedCheckinData && (
-            <div className="rounded-lg border border-navy-200 bg-navy-50 p-4 text-sm">
-              <div className="font-semibold text-navy-800 mb-1">Explanation already submitted</div>
-              {selectedCheckinData.transcript && (
-                <p className="italic text-navy-700 mb-2">“{selectedCheckinData.transcript}”</p>
-              )}
-              <div className="text-navy-600">
-                Status: <span className="font-semibold">{getVerificationLabel(selectedCheckinData.verification_status || 'PENDING')}</span>
+            <div className="space-y-3">
+              <div className="rounded-lg border border-navy-200 bg-navy-50 p-4 text-sm">
+                <div className="font-semibold text-navy-800 mb-1">Explanation already submitted</div>
+                {selectedCheckinData.transcript && (
+                  <p className="italic text-navy-700">“{selectedCheckinData.transcript}”</p>
+                )}
               </div>
+              {selectedCheckinData.verdict && (
+                <VerdictPanel verdict={{
+                  verdict: selectedCheckinData.verdict,
+                  attendance: selectedCheckinData.attendance || 'PENDING_REVIEW',
+                  summary: selectedCheckinData.verdict_summary || '',
+                  claims: selectedCheckinData.claims || [],
+                  checks: selectedCheckinData.checks || [],
+                }} />
+              )}
             </div>
           )}
 
-          {windowClosed && (
+          {decidedWithoutReason && selectedCheckinData && (
+            <VerdictPanel verdict={{
+              verdict: selectedCheckinData.verdict!,
+              attendance: selectedCheckinData.attendance || 'DENIED',
+              summary: selectedCheckinData.verdict_summary || '',
+              claims: selectedCheckinData.claims || [],
+              checks: selectedCheckinData.checks || [],
+            }} />
+          )}
+
+          {selectedCheckinData && windowClosed && (
             <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
               <Lock size={16} className="mt-0.5 shrink-0" />
               <span>
@@ -241,7 +324,11 @@ export default function StudentExplanation() {
           )}
 
           {/* Statement */}
-          {checkins.length > 0 && !alreadyExplained && !windowClosed && (<>
+          {selectedCheckinData && !alreadyExplained && !decidedWithoutReason && !windowClosed && (<>
+          <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <Lock size={15} className="mt-0.5 shrink-0" />
+            <span>You are late. <strong>Do not enter the class</strong> until you have recorded and submitted your reason.</span>
+          </div>
           {secondsLeft !== null && (
             <div className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${
               secondsLeft <= 120 ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-800'

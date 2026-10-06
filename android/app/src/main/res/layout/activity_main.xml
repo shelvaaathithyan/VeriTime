@@ -284,7 +284,7 @@
                             android:id="@+id/tvQrTitle"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="You are late — scan to explain"
+                            android:text="LATE — DO NOT ENTER"
                             android:textSize="16sp"
                             android:textStyle="bold"
                             android:textColor="@color/orange_600"

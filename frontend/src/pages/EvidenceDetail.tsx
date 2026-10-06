@@ -7,9 +7,10 @@ import { lateArrivalApi, teacherDecisionApi } from '../services/api';
 import { LateArrivalEvidence, TeacherDecision } from '../types';
 import {
   formatTime, formatDate, formatScheduledTime, formatLateMinutes,
-  getReasonLabel, getVerificationLabel, getEvidenceWeightColor
+  getReasonLabel, getVerificationLabel, getEvidenceWeightColor, getSessionStartLabel
 } from '../utils/formatters';
 import LoadingSpinner from '../components/LoadingSpinner';
+import VerdictPanel from '../components/VerdictPanel';
 
 export default function EvidenceDetail() {
   const { id } = useParams<{ id: string }>();
@@ -83,10 +84,18 @@ export default function EvidenceDetail() {
           </div>
           <div>
             <div className="text-[11px] font-bold text-navy-400 uppercase tracking-wider mb-1">Late By</div>
-            <div className="text-sm font-semibold text-red-600">{formatLateMinutes(data.checkin.lateMinutes)} minutes</div>
+            <div className="text-sm font-semibold text-red-600">{formatLateMinutes(data.checkin.lateMinutes)}</div>
           </div>
         </div>
       </div>
+
+      {/* Truth check result: stored verdict + attendance, claim by claim */}
+      {data.verdict && (
+        <div className="mb-8">
+          <h2 className="text-[11px] font-bold text-navy-400 uppercase tracking-widest mb-3">Truth Check</h2>
+          <VerdictPanel verdict={data.verdict} />
+        </div>
+      )}
 
       {/* Horizontal Evidence Timeline */}
       <div className="mb-8">
@@ -98,14 +107,20 @@ export default function EvidenceDetail() {
           </div>
           <ArrowRight className="text-navy-300 mx-3" size={20} />
           
-          <div className="bg-navy-50 border border-navy-200 rounded px-4 py-3 min-w-[140px] text-center shadow-sm">
-            <div className="text-[11px] text-navy-400 uppercase tracking-wide mb-1">Entered campus</div>
-            <div className="text-navy-900 font-mono">{data.checkin.gateEntryAt ? formatTime(data.checkin.gateEntryAt) : 'Not recorded'}</div>
-          </div>
-          <ArrowRight className="text-navy-300 mx-3" size={20} />
+          {data.checkin.sessionStart && (
+            <>
+              <div className="bg-navy-50 border border-navy-200 rounded px-4 py-3 min-w-[140px] text-center shadow-sm">
+                <div className="text-[11px] text-navy-400 uppercase tracking-wide mb-1">Gate scan</div>
+                <div className={data.checkin.gateEntryAt ? 'text-navy-900 font-mono' : 'text-amber-600'}>
+                  {data.checkin.gateEntryAt ? formatTime(data.checkin.gateEntryAt) : 'Not scanned'}
+                </div>
+              </div>
+              <ArrowRight className="text-navy-300 mx-3" size={20} />
+            </>
+          )}
 
           <div className="bg-orange-50 border border-orange-200 rounded px-4 py-3 min-w-[140px] text-center shadow-sm">
-            <div className="text-[11px] text-orange-600 uppercase tracking-wide mb-1">Entered class{data.checkin.room ? ` (${data.checkin.room})` : ''}</div>
+            <div className="text-[11px] text-orange-600 uppercase tracking-wide mb-1">Class door scan{data.checkin.room ? ` (${data.checkin.room})` : ''}</div>
             <div className="text-orange-700 font-mono">{formatTime(data.checkin.timestamp)}</div>
           </div>
           <ArrowRight className="text-navy-300 mx-3" size={20} />
@@ -130,15 +145,30 @@ export default function EvidenceDetail() {
           </div>
           <ArrowRight className="text-navy-300 mx-3" size={20} />
 
-          <div className={`border rounded px-4 py-3 min-w-[140px] text-center shadow-sm ${
-            data.verificationStatus === 'SUPPORTED' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
-            data.verificationStatus === 'PARTIALLY_SUPPORTED' ? 'bg-amber-50 border-amber-200 text-amber-700' :
-            data.verificationStatus === 'INCONSISTENT' ? 'bg-red-50 border-red-200 text-red-700' :
-            'bg-slate-50 border-slate-200 text-slate-700'
-          }`}>
-            <div className="text-[11px] uppercase tracking-wide mb-1 opacity-80">Verification</div>
-            <div className="font-bold">{data.verificationStatus.replace(/_/g, ' ')}</div>
-          </div>
+          {/* Final truth-check verdict when there is one; otherwise the evidence engine's status */}
+          {data.verdict ? (
+            <div className={`border rounded px-4 py-3 min-w-[140px] text-center shadow-sm ${
+              data.verdict.verdict === 'TRUE' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
+              data.verdict.verdict === 'UNVERIFIED' ? 'bg-slate-50 border-slate-200 text-slate-700' :
+              'bg-red-50 border-red-200 text-red-700'
+            }`}>
+              <div className="text-[11px] uppercase tracking-wide mb-1 opacity-80">Verdict</div>
+              <div className="font-bold">
+                {data.verdict.verdict === 'TRUE' ? 'True' : data.verdict.verdict === 'FALSE' ? 'False' : data.verdict.verdict === 'NO_STATEMENT' ? 'No reason'
+                  : data.verdict.verdict === 'REPEATED_LATENESS' ? 'Late too often' : 'Teacher to verify'}
+              </div>
+            </div>
+          ) : (
+            <div className={`border rounded px-4 py-3 min-w-[140px] text-center shadow-sm ${
+              data.verificationStatus === 'SUPPORTED' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
+              data.verificationStatus === 'PARTIALLY_SUPPORTED' ? 'bg-amber-50 border-amber-200 text-amber-700' :
+              data.verificationStatus === 'INCONSISTENT' ? 'bg-red-50 border-red-200 text-red-700' :
+              'bg-slate-50 border-slate-200 text-slate-700'
+            }`}>
+              <div className="text-[11px] uppercase tracking-wide mb-1 opacity-80">Verification</div>
+              <div className="font-bold">{data.verificationStatus.replace(/_/g, ' ')}</div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -148,11 +178,19 @@ export default function EvidenceDetail() {
           <h2 className="text-[11px] font-bold text-navy-400 uppercase tracking-widest mb-3">Evidence Summary</h2>
           <div className="bg-white border border-navy-200 rounded-lg p-6 space-y-4 shadow-sm">
             <div className="flex justify-between border-b border-navy-50 pb-3">
-              <span className="text-sm font-semibold text-navy-600">Entered campus (gate)</span>
-              <span className="text-sm font-mono font-medium text-navy-900">{data.checkin.gateEntryAt ? formatTime(data.checkin.gateEntryAt) : 'Not recorded'}</span>
+              <span className="text-sm font-semibold text-navy-600">Class</span>
+              <span className="text-sm font-medium text-navy-900">{getSessionStartLabel(data.checkin.sessionStart) || 'Between periods'}</span>
             </div>
+            {data.checkin.sessionStart && (
+              <div className="flex justify-between border-b border-navy-50 pb-3">
+                <span className="text-sm font-semibold text-navy-600">Gate scan</span>
+                <span className={`text-sm font-mono font-medium ${data.checkin.gateEntryAt ? 'text-navy-900' : 'text-amber-600'}`}>
+                  {data.checkin.gateEntryAt ? formatTime(data.checkin.gateEntryAt) : 'Not scanned'}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between border-b border-navy-50 pb-3">
-              <span className="text-sm font-semibold text-navy-600">Entered class</span>
+              <span className="text-sm font-semibold text-navy-600">Class door scan</span>
               <span className="text-sm font-mono font-medium text-navy-900">
                 {formatTime(data.checkin.timestamp)}
                 {data.checkin.clockAdjusted && <span className="ml-1 text-xs text-amber-600">(device clock was off — server time used)</span>}
@@ -164,7 +202,7 @@ export default function EvidenceDetail() {
             </div>
             <div className="flex justify-between border-b border-navy-50 pb-3">
               <span className="text-sm font-semibold text-navy-600">Difference</span>
-              <span className="text-sm font-bold text-red-600">{formatLateMinutes(data.checkin.lateMinutes)} minutes</span>
+              <span className="text-sm font-bold text-red-600">{formatLateMinutes(data.checkin.lateMinutes)}</span>
             </div>
             <div className="flex justify-between border-b border-navy-50 pb-3">
               <span className="text-sm font-semibold text-navy-600">Student explanation</span>

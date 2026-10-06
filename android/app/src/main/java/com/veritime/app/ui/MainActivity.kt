@@ -371,13 +371,30 @@ class MainActivity : AppCompatActivity(), NfcAdapter.ReaderCallback {
             tvSuccessLocation.text = result.location ?: settings.location
             tvSuccessReader.text = result.readerId ?: settings.readerId
 
-            // Late to class: show a QR code the student scans to record their explanation
+            // Late too many times this week: refuse entry, no QR (no reason is accepted)
             val url = result.explanationUrl
-            if (result.isLate == true && url != null) {
+            if (result.entryDenied == true) {
+                qrSection.visibility = View.VISIBLE
+                tvQrTitle.text = "ENTRY NOT ALLOWED"
+                ivQrCode.visibility = View.GONE
+                tvQrHint.text = result.denialReason ?: "You have been late too many times this week."
+            } else if (result.isLate == true && url != null) {
+                // Late to class: show a QR code the student scans to record their explanation
+                tvQrTitle.text = "LATE — DO NOT ENTER"
+                ivQrCode.visibility = View.VISIBLE
                 qrSection.visibility = View.VISIBLE
                 ivQrCode.setImageBitmap(QrCode.create(url))
                 val minutes = result.statementWindowMinutes ?: 10
-                tvQrHint.text = "Scan with your phone camera and record your explanation within $minutes minutes"
+                // First class of the morning / after lunch: show the gate scan alongside the door scan
+                val times = if (result.sessionStart != null) {
+                    val gate = result.gateEntryTime ?: "not scanned"
+                    "Gate scan: $gate   ·   Door scan: ${result.arrivalTime}\n"
+                } else {
+                    "Door scan: ${result.arrivalTime}\n"
+                }
+                val gateWarning = if (result.gateScanMissing == true) "⚠ No gate scan recorded today\n" else ""
+                tvQrHint.text = "$times$gateWarning\nScan this QR code with your phone and record your reason " +
+                    "within $minutes minutes. You may enter the class after submitting it."
             } else {
                 qrSection.visibility = View.GONE
             }

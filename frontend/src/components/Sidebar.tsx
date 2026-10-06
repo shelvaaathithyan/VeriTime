@@ -6,12 +6,16 @@ import {
   CreditCard,
   ChevronRight,
   Shield,
+  ScanLine,
+  CalendarDays,
 } from 'lucide-react';
 
 const navItems = [
+  { path: '/classes', label: 'My Classes', icon: CalendarDays },
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/teacher', label: 'Teacher Review', icon: GraduationCap },
   { path: '/students', label: 'Student Directory', icon: Users },
+  { path: '/scan-simulator', label: 'Scan Simulator', icon: ScanLine },
 ];
 
 export default function Sidebar() {

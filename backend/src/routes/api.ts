@@ -5,6 +5,8 @@ import {
   submitExplanation, submitStatement, submitTeacherDecision, getStudents, getStudentById, getDashboard, createStudent
 } from '../controllers/checkinController';
 import { loginHandler, logoutHandler, meHandler } from '../controllers/authController';
+import { simulateArrival } from '../controllers/simulatorController';
+import { getTimetable, getMyClasses, getClassAttendance } from '../controllers/teacherController';
 import { requireAuth } from '../services/authService';
 
 const router = Router();
@@ -37,5 +39,11 @@ router.post('/teacher-decision', teacherOnly, submitTeacherDecision);
 router.get('/students', teacherOnly, getStudents);
 router.get('/students/:id', teacherOnly, getStudentById);
 router.get('/dashboard', teacherOnly, getDashboard);
+router.get('/timetable', teacherOnly, getTimetable);
+router.get('/teacher/classes', teacherOnly, getMyClasses);
+router.get('/teacher/attendance', teacherOnly, getClassAttendance);
+
+// Testing tool: simulate a gate + class door scan for any class in the timetable
+router.post('/simulate/arrival', teacherOnly, (req, res, next) => { simulateArrival(req, res).catch(next); });
 
 export default router;

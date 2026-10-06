@@ -5,8 +5,9 @@ import {
 } from 'lucide-react';
 import { lateArrivalApi } from '../services/api';
 import { LateArrival } from '../types';
-import { formatTime, getReasonLabel } from '../utils/formatters';
+import { formatTime, getReasonLabel, getSessionStartLabel } from '../utils/formatters';
 import VerificationBadge from '../components/VerificationBadge';
+import { attendanceLabel } from '../components/VerdictPanel';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
 
@@ -120,7 +121,7 @@ export default function TeacherDashboard() {
                   <th className="table-th">Class</th>
                   <th className="table-th">Late By</th>
                   <th className="table-th">Explanation</th>
-                  <th className="table-th">Verification</th>
+                  <th className="table-th">Verdict</th>
                   <th className="table-th">Teacher Decision</th>
                   <th className="table-th">Action</th>
                 </tr>
@@ -134,8 +135,17 @@ export default function TeacherDashboard() {
                       </Link>
                       <div className="text-xs text-navy-400">{a.student_id} · {a.department}</div>
                     </td>
-                    <td className="table-td font-mono text-sm">
-                      {formatTime(a.timestamp)}
+                    <td className="table-td text-sm">
+                      {/* Gate + door for the first class of the morning / after lunch; door only between periods */}
+                      {a.session_start ? (
+                        <div className="space-y-0.5">
+                          <div className="font-mono"><span className="text-navy-400 font-sans text-xs mr-1">Gate</span>{a.gate_entry_at ? formatTime(a.gate_entry_at) : <span className="text-amber-600 font-sans text-xs">not scanned</span>}</div>
+                          <div className="font-mono"><span className="text-navy-400 font-sans text-xs mr-1">Door</span>{formatTime(a.timestamp)}</div>
+                          <div className="text-[11px] text-navy-400">{getSessionStartLabel(a.session_start)}</div>
+                        </div>
+                      ) : (
+                        <div className="font-mono"><span className="text-navy-400 font-sans text-xs mr-1">Door</span>{formatTime(a.timestamp)}</div>
+                      )}
                     </td>
                     <td className="table-td text-sm text-navy-700">
                       {a.period ? `Period ${a.period}` : '—'}
@@ -147,14 +157,33 @@ export default function TeacherDashboard() {
                       <span className="text-orange-600 font-medium">{a.late_minutes} min</span>
                     </td>
                     <td className="table-td text-sm text-navy-600">
-                      {a.reason ? getReasonLabel(a.reason) : a.statement_missed ? (
+                      {a.reason ? getReasonLabel(a.reason) : a.verdict === 'REPEATED_LATENESS' ? (
+                        <span className="text-red-600 font-medium">Entry refused — late too often</span>
+                      ) : a.statement_missed ? (
                         <span className="text-red-600 font-medium">No statement in time</span>
                       ) : (
                         <span className="text-navy-300 italic">Waiting for student</span>
                       )}
                     </td>
                     <td className="table-td">
-                      <VerificationBadge status={a.verification_status} />
+                      {a.verdict ? (
+                        <div>
+                          <span className={`badge ${
+                            a.verdict === 'TRUE' ? 'badge-supported' :
+                            a.verdict === 'UNVERIFIED' ? 'badge-partial' : 'badge-inconsistent'
+                          }`}>
+                            {a.verdict === 'TRUE' ? 'True' : a.verdict === 'FALSE' ? 'False' : a.verdict === 'NO_STATEMENT' ? 'No reason'
+                              : a.verdict === 'REPEATED_LATENESS' ? 'Late too often' : 'Teacher to verify'}
+                          </span>
+                          <div className={`text-xs mt-1 font-medium ${
+                            a.attendance === 'GRANTED' ? 'text-emerald-700' : a.attendance === 'DENIED' ? 'text-red-700' : 'text-navy-500'
+                          }`}>
+                            {attendanceLabel(a.attendance)}
+                          </div>
+                        </div>
+                      ) : (
+                        <VerificationBadge status={a.verification_status} />
+                      )}
                     </td>
                     <td className="table-td">
                       {a.teacher_decision ? (

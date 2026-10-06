@@ -8,6 +8,9 @@ import StudentExplanation from './pages/StudentExplanation';
 import Students from './pages/Students';
 import StudentProfile from './pages/StudentProfile';
 import NfcCredentials from './pages/NfcCredentials';
+import ScanSimulator from './pages/ScanSimulator';
+import MyClasses from './pages/MyClasses';
+import ClassAttendance from './pages/ClassAttendance';
 import TopBar from './components/TopBar';
 import Login, { homePathFor } from './pages/Login';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -40,6 +43,9 @@ function AdminShell() {
             <Route path="/students" element={<Students />} />
             <Route path="/students/:id" element={<StudentProfile />} />
             <Route path="/nfc-credentials" element={<NfcCredentials />} />
+            <Route path="/scan-simulator" element={<ScanSimulator />} />
+            <Route path="/classes" element={<MyClasses />} />
+            <Route path="/classes/:day/:period" element={<ClassAttendance />} />
           </Routes>
         </main>
       </div>

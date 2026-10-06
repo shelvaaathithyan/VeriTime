@@ -23,7 +23,8 @@ export interface EvidenceInput {
   commute?: CommuteEstimate | null; // only present for the first arrival of the day
   weatherLocation?: string | null;   // where the weather reading was taken
   statement?: { transcript: string; analysis: StatementAnalysis } | null; // student's spoken/typed account
-  gateEntryTime?: string | null;               // "09:19" — when the student entered campus today
+  sessionStart?: 'FIRST_CLASS' | 'AFTER_LUNCH' | null; // first class of the morning / after lunch
+  gateEntryTime?: string | null;               // "09:19" — latest gate scan before this class (session starts only)
   statementMinutesAfterArrival?: number | null; // how soon after the classroom tap they explained
 }
 
@@ -74,11 +75,18 @@ export function runEvidenceEngine(input: EvidenceInput): EvidenceResult {
 
 // Uses the gate tap to separate the journey to campus from time spent on campus
 function applyGateEvidence(input: EvidenceInput): EvidenceResult {
-  const { gateEntryTime, scheduledTime, arrivalTime, explanation } = input;
+  const { gateEntryTime, scheduledTime, arrivalTime, explanation, sessionStart } = input;
+
+  // Class between periods: the student was already on campus, so the gate scan isn't relevant
+  if (!sessionStart) return runContextRules(input);
 
   if (!gateEntryTime) {
     const result = runContextRules(input);
-    result.evidence.push({ type: 'GATE_ENTRY', detail: 'No gate entry recorded today', weight: 'CONTEXTUAL' });
+    result.evidence.push({
+      type: 'GATE_ENTRY',
+      detail: `No gate scan recorded before this ${sessionStart === 'AFTER_LUNCH' ? 'after-lunch' : 'first'} class`,
+      weight: 'CONTEXTUAL',
+    });
     return result;
   }
 

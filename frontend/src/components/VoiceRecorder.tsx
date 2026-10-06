@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Mic, Square, RotateCcw } from 'lucide-react';
 
 export interface VoiceRecording {
-  base64: string;     // WAV audio, base64 encoded (no data: prefix)
-  mimeType: string;   // always audio/wav
+  base64: string;     // recorded audio, base64 encoded (no data: prefix)
+  mimeType: string;   // e.g. audio/webm (Chrome, Firefox) or audio/mp4 (Safari)
   durationSec: number;
 }
 
@@ -13,49 +13,12 @@ interface Props {
 }
 
 const MAX_SECONDS = 120;
-const TARGET_SAMPLE_RATE = 16000;
 
-// Browsers record WebM/MP4, which Gemini doesn't list as a supported audio format,
-// so recordings are converted to 16 kHz mono WAV before upload.
-async function blobToWav(blob: Blob): Promise<{ wav: Blob; durationSec: number }> {
-  const arrayBuffer = await blob.arrayBuffer();
-  const decodeCtx = new AudioContext();
-  const decoded = await decodeCtx.decodeAudioData(arrayBuffer);
-  await decodeCtx.close();
-
-  const length = Math.ceil(decoded.duration * TARGET_SAMPLE_RATE);
-  const offline = new OfflineAudioContext(1, length, TARGET_SAMPLE_RATE);
-  const source = offline.createBufferSource();
-  source.buffer = decoded;
-  source.connect(offline.destination);
-  source.start();
-  const rendered = await offline.startRendering();
-  const samples = rendered.getChannelData(0);
-
-  const buffer = new ArrayBuffer(44 + samples.length * 2);
-  const view = new DataView(buffer);
-  const writeString = (offset: number, str: string) => {
-    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
-  };
-  writeString(0, 'RIFF');
-  view.setUint32(4, 36 + samples.length * 2, true);
-  writeString(8, 'WAVE');
-  writeString(12, 'fmt ');
-  view.setUint32(16, 16, true);          // PCM header size
-  view.setUint16(20, 1, true);           // PCM format
-  view.setUint16(22, 1, true);           // mono
-  view.setUint32(24, TARGET_SAMPLE_RATE, true);
-  view.setUint32(28, TARGET_SAMPLE_RATE * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);          // 16-bit
-  writeString(36, 'data');
-  view.setUint32(40, samples.length * 2, true);
-  for (let i = 0; i < samples.length; i++) {
-    const s = Math.max(-1, Math.min(1, samples[i]));
-    view.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-  }
-
-  return { wav: new Blob([buffer], { type: 'audio/wav' }), durationSec: decoded.duration };
+// Gemini accepts the browsers' own recording formats (WebM/Opus, MP4/AAC), so the recording
+// is uploaded as-is. Only the base type is sent, e.g. "audio/webm;codecs=opus" -> "audio/webm".
+function baseMimeType(...candidates: string[]): string {
+  const type = candidates.find((t) => t && t.startsWith('audio/')) || 'audio/webm';
+  return type.split(';')[0].trim();
 }
 
 function blobToBase64(blob: Blob): Promise<string> {
@@ -75,6 +38,7 @@ export default function VoiceRecorder({ onChange, disabled }: Props) {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
+  const secondsRef = useRef(0);
 
   useEffect(() => () => {
     if (timerRef.current) window.clearInterval(timerRef.current);
@@ -104,22 +68,26 @@ export default function VoiceRecorder({ onChange, disabled }: Props) {
         stream.getTracks().forEach((t) => t.stop());
         setState('processing');
         try {
-          const raw = new Blob(chunksRef.current, { type: recorder.mimeType });
-          const { wav, durationSec } = await blobToWav(raw);
-          setAudioUrl(URL.createObjectURL(wav));
-          onChange({ base64: await blobToBase64(wav), mimeType: 'audio/wav', durationSec });
+          const mimeType = baseMimeType(recorder.mimeType, chunksRef.current[0]?.type || '');
+          const audio = new Blob(chunksRef.current, { type: mimeType });
+          if (audio.size === 0) throw new Error('Recording was empty');
+          setAudioUrl(URL.createObjectURL(audio));
+          onChange({ base64: await blobToBase64(audio), mimeType, durationSec: secondsRef.current });
           setState('recorded');
-        } catch {
-          setError('Could not process the recording. Please try again or type instead.');
+        } catch (err) {
+          console.error('Could not process recording:', err);
+          setError('The recording was empty or could not be read. Please record again, or type instead.');
           setState('idle');
         }
       };
       recorderRef.current = recorder;
-      recorder.start();
+      recorder.start(1000); // collect data every second so nothing is lost if the browser stops early
       setSeconds(0);
+      secondsRef.current = 0;
       setState('recording');
       timerRef.current = window.setInterval(() => {
         setSeconds((s) => {
+          secondsRef.current = s + 1;
           if (s + 1 >= MAX_SECONDS) stopRecording();
           return s + 1;
         });

@@ -1,12 +1,14 @@
 import { VerificationStatus, ExplanationReason } from '../types';
 
+// Always shown in college time (IST), e.g. "01:46 PM", whatever timezone the device is set to
 export function formatTime(isoString: string): string {
   const d = new Date(isoString);
   return d.toLocaleTimeString('en-IN', {
     hour: '2-digit',
     minute: '2-digit',
     hour12: true,
-  });
+    timeZone: 'Asia/Kolkata',
+  }).toUpperCase();
 }
 
 export function formatDate(isoString: string): string {
@@ -62,12 +64,22 @@ export function getReasonLabel(reason: ExplanationReason | string): string {
     HEAVY_RAIN: 'Heavy Rain / Weather',
     WEATHER: 'Weather',
     MEDICAL_EMERGENCY: 'Medical / Emergency',
+    FAMILY_EMERGENCY: 'Family Emergency',
+    TEACHER_MEETING: 'Meeting a Teacher',
+    PLACEMENT: 'Placement Activity',
     COLLEGE_ACTIVITY: 'College Activity',
     HOSTEL_DELAY: 'Hostel-Related Delay',
     PERSONAL: 'Personal / Family Reason',
     OTHER: 'Other',
   };
   return map[reason] || reason;
+}
+
+// Label for classes where students arrive from outside campus (gate + door scans both matter)
+export function getSessionStartLabel(sessionStart?: string | null): string | null {
+  if (sessionStart === 'FIRST_CLASS') return 'First class of the day';
+  if (sessionStart === 'AFTER_LUNCH') return 'First class after lunch';
+  return null;
 }
 
 export function getEvidenceWeightColor(weight: string): string {

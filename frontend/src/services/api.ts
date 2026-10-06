@@ -112,16 +112,25 @@ export const checkinApi = {
     timestamp: string;
     readerId?: string;
     location?: string;
+    checkpoint?: 'GATE' | 'CLASSROOM';
+    room?: string;
   }) =>
     request<{
       success: boolean;
       checkinId: string;
       lateArrivalId: string | null;
-      student: { id: string; name: string; department: string };
+      studentId: string;
+      studentName: string;
       arrivalTime: string;
-      scheduledTime: string;
+      scheduledTime: string | null;
       lateMinutes: number;
       isLate: boolean;
+      status: string;
+      classCode?: string | null;
+      period?: number | null;
+      gateEntryTime?: string | null;
+      statementWindowMinutes?: number | null;
+      explanationUrl?: string | null;
       location: string;
       readerId: string;
     }>('/checkins', {
@@ -176,6 +185,11 @@ export const explanationApi = {
       verificationStatus: string;
       verificationSummary: string;
       evidence: import('../types').EvidenceItem[];
+      verdict: import('../types').Verdict['verdict'];
+      attendance: import('../types').Verdict['attendance'];
+      verdictSummary: string;
+      claims: import('../types').ClaimCheck[];
+      checks: import('../types').DataCheck[];
     }>('/explanations/statement', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -217,6 +231,41 @@ export const studentApi = {
       }>;
       credential: { card_identifier: string; status: string } | null;
     }>(`/students/${id}`),
+};
+
+// Timetable, teacher classes and the scan simulator (teacher only)
+export const teacherApi = {
+  timetable: () => request<import('../types').TimetableSlot[]>('/timetable'),
+
+  classes: () => request<import('../types').MyClassesResponse>('/teacher/classes'),
+
+  attendance: (day: string, period: number) =>
+    request<import('../types').ClassRoster>(`/teacher/attendance?day=${encodeURIComponent(day)}&period=${period}`),
+
+  simulateArrival: (data: {
+    studentId: string;
+    day: string;
+    period: number;
+    lateMinutes: number;
+    gateMinutesBeforeDoor: number | null;
+  }) =>
+    request<{
+      success: boolean;
+      checkinId: string;
+      studentId: string;
+      studentName: string;
+      arrivalTime: string;
+      gateScan: string | null;
+      isLate: boolean;
+      lateMinutes: number;
+      status: string;
+      sessionStart: string | null;
+      statementWindowMinutes: number | null;
+      weeklyLateCount: number;
+      entryDenied: boolean;
+      denialReason: string | null;
+      slot: import('../types').TimetableSlot;
+    }>('/simulate/arrival', { method: 'POST', body: JSON.stringify(data) }),
 };
 
 // Dashboard

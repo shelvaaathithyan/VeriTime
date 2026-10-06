@@ -15,6 +15,9 @@ export default function TopBar() {
   else if (location.pathname.startsWith('/evidence')) title = 'Late Arrival Review';
   else if (location.pathname.startsWith('/explanation')) title = 'Submit Explanation';
   else if (location.pathname.startsWith('/nfc-credentials')) title = 'Administration';
+  else if (location.pathname.startsWith('/scan-simulator')) title = 'Scan Simulator';
+  else if (location.pathname.startsWith('/classes/')) title = 'Class Attendance';
+  else if (location.pathname.startsWith('/classes')) title = 'My Classes';
 
   const handleRefresh = () => {
     window.location.reload();

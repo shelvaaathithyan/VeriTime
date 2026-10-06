@@ -8,6 +8,27 @@ export interface AuthUser {
   studentId: string | null;
 }
 
+export interface ClaimCheck {
+  claim: string;
+  verdict: 'TRUE' | 'FALSE' | 'UNVERIFIABLE';
+  reason: string;
+  source: string;
+}
+
+export interface DataCheck {
+  label: string;
+  result: string;
+  source: string;
+}
+
+export interface Verdict {
+  verdict: 'TRUE' | 'FALSE' | 'UNVERIFIED' | 'NO_STATEMENT' | 'REPEATED_LATENESS';
+  attendance: 'GRANTED' | 'DENIED' | 'PENDING_REVIEW';
+  summary: string;
+  claims: ClaimCheck[];
+  checks?: DataCheck[];
+}
+
 export interface MyLateCheckin {
   id: string;
   student_id: string;
@@ -19,14 +40,86 @@ export interface MyLateCheckin {
   period?: number;
   verification_status?: VerificationStatus;
   room?: string;
+  session_start?: 'FIRST_CLASS' | 'AFTER_LUNCH' | null;
+  gate_entry_at?: string | null;
   reason?: string;
   transcript?: string;
   statement_deadline?: string | null;
+  verdict?: Verdict['verdict'] | null;
+  attendance?: Verdict['attendance'] | null;
+  verdict_summary?: string | null;
+  claims?: ClaimCheck[];
+  checks?: DataCheck[];
+  late_count_week?: number | null;
+  is_current_class?: boolean;
+  class_day?: string | null;
+  simulated?: number;
+}
+
+export interface TimetableSlot {
+  day: string;
+  period: number;
+  start: string;
+  end: string;
+  code: string;
+  title: string;
+  room: string | null;
+  staff: string[];
+  isFree: boolean;
+  sessionStart: 'FIRST_CLASS' | 'AFTER_LUNCH' | null;
+}
+
+export interface AttendanceCounts {
+  present: number;
+  late: number;
+  denied: number;
+  pending: number;
+  absent: number;
+  total: number;
+}
+
+export type RosterStatus = 'PRESENT' | 'LATE_GRANTED' | 'LATE_DENIED' | 'LATE_PENDING' | 'ABSENT' | 'NOT_YET';
+
+export interface ClassRoster {
+  slot: TimetableSlot;
+  date: string;
+  isToday: boolean;
+  classOver: boolean;
+  counts: AttendanceCounts;
+  students: Array<{
+    id: string;
+    name: string;
+    status: RosterStatus;
+    doorTime: string | null;
+    gateTime: string | null;
+    lateMinutes: number;
+    verdict: string | null;
+    lateArrivalId: string | null;
+    simulated: boolean;
+  }>;
+}
+
+export interface MyClassesResponse {
+  teacher: string;
+  isTutor: boolean;
+  today: string;
+  classes: Array<TimetableSlot & { isToday: boolean; counts: AttendanceCounts }>;
+}
+
+export interface CurrentClass {
+  period: number;
+  classCode: string;
+  courseTitle: string | null;
+  room: string | null;
+  start: string | null;
+  end: string | null;
 }
 
 export interface MyLateCheckinsResponse {
   serverTime: string;
   windowMinutes: number;
+  currentClass: CurrentClass | null;
+  currentStatus: string;
   checkins: MyLateCheckin[];
 }
 
@@ -48,6 +141,9 @@ export type ExplanationReason =
   | 'HEAVY_RAIN'
   | 'WEATHER'
   | 'MEDICAL_EMERGENCY'
+  | 'FAMILY_EMERGENCY'
+  | 'TEACHER_MEETING'
+  | 'PLACEMENT'
   | 'COLLEGE_ACTIVITY'
   | 'HOSTEL_DELAY'
   | 'PERSONAL'
@@ -129,7 +225,10 @@ export interface LateArrival {
   period?: number;
   room?: string;
   gate_entry_at?: string | null;
+  session_start?: 'FIRST_CLASS' | 'AFTER_LUNCH' | null;
   statement_missed?: number;
+  verdict?: Verdict['verdict'] | null;
+  attendance?: Verdict['attendance'] | null;
 }
 
 export interface EvidenceItem {
@@ -155,10 +254,12 @@ export interface LateArrivalEvidence {
     readerId: string;
     room?: string | null;
     gateEntryAt?: string | null;
+    sessionStart?: 'FIRST_CLASS' | 'AFTER_LUNCH' | null;
     clockAdjusted?: boolean;
   };
   statementDeadline?: string | null;
   statementMissed?: boolean;
+  verdict: Verdict | null;
   explanation: {
     reason: ExplanationReason;
     additionalExplanation?: string;

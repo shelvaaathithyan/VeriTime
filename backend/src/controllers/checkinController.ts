@@ -1,11 +1,13 @@
 import { Request, Response } from 'express';
 import db, { ensureStudentAccount } from '../models/database';
 import { AuthedRequest } from '../services/authService';
+import { checkClaims } from '../services/claimChecker';
+import { teacherCourseCodes } from './teacherController';
 import { v4 as uuidv4 } from 'uuid';
 import { runEvidenceEngine } from '../services/evidenceEngine';
-import { calculateLateStatus, COURSES } from '../services/timetableService';
+import { calculateLateStatus, COURSES, weekdayOf } from '../services/timetableService';
 import { estimateCommute, CommuteEstimate } from '../services/commuteService';
-import { getWorstWeather, WeatherReport } from '../services/weatherService';
+import { getWeatherAlongRoute, WeatherReport } from '../services/weatherService';
 import { transcribeAudio, analyzeStatement, SpeechServiceError, StatementAnalysis } from '../services/speechService';
 
 function calcLateMinutes(arrival: string, scheduled: string): number {
@@ -65,6 +67,11 @@ function getTodayIST(): string {
 // Device clocks more than this far from the server are ignored in favour of server time
 const MAX_CLOCK_SKEW_MS = 2 * 60 * 1000;
 
+// More late arrivals than this within 7 days means entry is refused at the door
+export function maxLatePerWeek(): number {
+  return Number(process.env.MAX_LATE_PER_WEEK || 3);
+}
+
 export function statementWindowMinutes(): number {
   return Number(process.env.STATEMENT_WINDOW_MINUTES || 10);
 }
@@ -73,16 +80,37 @@ export function statementWindowMinutes(): number {
 // checkpoint = 'GATE'      → campus entry, only recorded (used later as evidence)
 // checkpoint = 'CLASSROOM' → classroom entry, decides whether the student is late
 export async function createCheckin(req: Request, res: Response): Promise<void> {
-  let { cardIdentifier, studentId, timestamp: deviceTimestamp, readerId, location, checkpoint, room: readerRoom } = req.body;
-  checkpoint = checkpoint === 'CLASSROOM' ? 'CLASSROOM' : 'GATE';
+  const { cardIdentifier, studentId, timestamp, readerId, location, checkpoint, room } = req.body;
+  const { status, body } = await recordScan({ cardIdentifier, studentId, deviceTimestamp: timestamp, readerId, location, checkpoint, room });
+  res.status(status).json(body);
+}
+
+interface ScanInput {
+  cardIdentifier?: string;
+  studentId?: string;
+  deviceTimestamp?: string;
+  readerId?: string;
+  location?: string;
+  checkpoint?: string;
+  room?: string;
+  // Scan simulator: use this exact time and this weekday's timetable
+  simulated?: { timestamp: string; day: string };
+}
+
+// Shared by real NFC taps and the scan simulator
+export async function recordScan(input: ScanInput): Promise<{ status: number; body: any }> {
+  let { cardIdentifier, studentId, deviceTimestamp, readerId, location, room: readerRoom } = input;
+  const checkpoint = input.checkpoint === 'CLASSROOM' ? 'CLASSROOM' : 'GATE';
+  const simulated = input.simulated || null;
 
   // Trust the device clock only if it agrees with the server (ALLOW_BACKDATED_CHECKINS is for testing)
   const receivedAt = new Date();
   const deviceTime = deviceTimestamp ? new Date(deviceTimestamp) : null;
   const deviceTimeValid = deviceTime !== null && !isNaN(deviceTime.getTime());
-  const clockAdjusted = !deviceTimeValid ||
-    (process.env.ALLOW_BACKDATED_CHECKINS !== 'true' && Math.abs(deviceTime!.getTime() - receivedAt.getTime()) > MAX_CLOCK_SKEW_MS);
-  const timestamp = (clockAdjusted ? receivedAt : deviceTime!).toISOString();
+  const clockAdjusted = !simulated && (!deviceTimeValid ||
+    (process.env.ALLOW_BACKDATED_CHECKINS !== 'true' && Math.abs(deviceTime!.getTime() - receivedAt.getTime()) > MAX_CLOCK_SKEW_MS));
+  const timestamp = simulated ? simulated.timestamp : (clockAdjusted ? receivedAt : deviceTime!).toISOString();
+  const classDay = simulated ? simulated.day : weekdayOf(timestamp);
 
   // Derive studentId from cardIdentifier if present (security requirement)
   if (cardIdentifier) {
@@ -90,20 +118,17 @@ export async function createCheckin(req: Request, res: Response): Promise<void> 
     if (credential) {
       studentId = credential.student_id;
     } else {
-      res.status(403).json({ error: 'Invalid or unregistered NFC card' });
-      return;
+      return { status: 403, body: { error: 'Invalid or unregistered NFC card' } };
     }
   }
 
   if (!studentId) {
-    res.status(400).json({ error: 'studentId is required if no valid cardIdentifier is provided' });
-    return;
+    return { status: 400, body: { error: 'studentId is required if no valid cardIdentifier is provided' } };
   }
 
   const student = db.prepare('SELECT * FROM students WHERE id = ?').get(studentId) as any;
   if (!student) {
-    res.status(404).json({ error: 'Student not found' });
-    return;
+    return { status: 404, body: { error: 'Student not found' } };
   }
 
   const checkinDate = dateFromISO(timestamp);
@@ -114,22 +139,21 @@ export async function createCheckin(req: Request, res: Response): Promise<void> 
   if (checkpoint === 'GATE') {
     db.prepare(`
       INSERT INTO checkins (id, student_id, card_identifier, timestamp, reader_id, location, checkpoint, received_at, clock_adjusted,
-                            late_minutes, is_late, schedule_status)
-      VALUES (?, ?, ?, ?, ?, ?, 'GATE', ?, ?, 0, 0, 'CAMPUS_ENTRY')
+                            late_minutes, is_late, schedule_status, class_day, simulated)
+      VALUES (?, ?, ?, ?, ?, ?, 'GATE', ?, ?, 0, 0, 'CAMPUS_ENTRY', ?, ?)
     `).run(checkinId, studentId, cardIdentifier || null, timestamp, readerId || 'GATE_PHONE_01',
-      location || defaultLocation, receivedAt.toISOString(), clockAdjusted ? 1 : 0);
+      location || defaultLocation, receivedAt.toISOString(), clockAdjusted ? 1 : 0, classDay, simulated ? 1 : 0);
 
-    res.json({
+    return { status: 200, body: {
       success: true, checkinId, lateArrivalId: null, checkpoint,
       studentId: student.id, studentName: student.name, department: student.department,
       arrivalTime, timestamp, clockAdjusted,
       status: 'CAMPUS_ENTRY', scheduleStatus: 'CAMPUS_ENTRY', isLate: false, lateMinutes: 0,
       location: location || defaultLocation, readerId: readerId || 'GATE_PHONE_01',
-    });
-    return;
+    } };
   }
 
-  const { isLate, lateMinutes, reason, scheduledStart, scheduledEnd, periodNumber, subjectCode, room } = calculateLateStatus(timestamp);
+  const { isLate, lateMinutes, reason, scheduledStart, scheduledEnd, periodNumber, subjectCode, room, sessionStart } = calculateLateStatus(timestamp, classDay);
   const lateMin = lateMinutes || 0;
   const sTime = scheduledStart || null;
 
@@ -139,19 +163,22 @@ export async function createCheckin(req: Request, res: Response): Promise<void> 
     SELECT COUNT(*) as count FROM checkins
     WHERE student_id = ? AND checkpoint = 'CLASSROOM' AND date(timestamp) = ? AND timestamp < ?
   `).get(studentId, checkinDate, timestamp) as any).count;
-  const isFirstArrival = earlierClassToday === 0;
+  // Coming from home: the first class of the morning, or no class attended yet today
+  const isFirstArrival = sessionStart === 'FIRST_CLASS' || earlierClassToday === 0;
 
-  // When the student entered campus today (first gate tap before this classroom tap)
-  const gateEntry = db.prepare(`
+  // For the first class of the morning or after lunch, students arrive from outside campus,
+  // so the latest gate scan before this door scan is part of the record
+  const gateEntry = sessionStart ? db.prepare(`
     SELECT timestamp FROM checkins
     WHERE student_id = ? AND checkpoint = 'GATE' AND date(timestamp) = ? AND timestamp <= ?
-    ORDER BY timestamp ASC LIMIT 1
-  `).get(studentId, checkinDate, timestamp) as any;
+    ORDER BY timestamp DESC LIMIT 1
+  `).get(studentId, checkinDate, timestamp) as any : null;
 
   // Measure the commute (with live traffic) and weather now, while they reflect the actual journey
   const hasHome = student.home_lat != null && student.home_lng != null;
   let commute: CommuteEstimate | null = null;
   let weather: WeatherReport | null = null;
+  let weatherReadings: WeatherReport[] = [];
   if (isLate) {
     const weatherPoints = [{
       lat: Number(process.env.CAMPUS_LAT || 11.0242544),
@@ -161,28 +188,35 @@ export async function createCheckin(req: Request, res: Response): Promise<void> 
     if (isFirstArrival && hasHome) {
       weatherPoints.push({ lat: student.home_lat, lng: student.home_lng, location: student.home_area || 'Home' });
     }
-    [commute, weather] = await Promise.all([
+    let route: { worst: WeatherReport | null; readings: WeatherReport[] };
+    [commute, route] = await Promise.all([
       isFirstArrival && hasHome ? estimateCommute(student.home_lat, student.home_lng) : Promise.resolve(null),
-      getWorstWeather(weatherPoints),
+      getWeatherAlongRoute(weatherPoints),
     ]);
+    weather = route.worst;
+    weatherReadings = route.readings;
   }
 
   db.prepare(`
-    INSERT INTO checkins (id, student_id, card_identifier, timestamp, reader_id, location, checkpoint, room, received_at, clock_adjusted, gate_entry_at,
+    INSERT INTO checkins (id, student_id, card_identifier, timestamp, reader_id, location, checkpoint, room, received_at, clock_adjusted, gate_entry_at, session_start, class_day, simulated,
                           scheduled_time, scheduled_end, period, class_code, late_minutes, is_late, schedule_status,
                           is_first_arrival, commute_distance_km, commute_duration_min, commute_typical_min, commute_traffic_delay_min, commute_source,
-                          weather_condition, weather_description, weather_severity, weather_location)
-    VALUES (?, ?, ?, ?, ?, ?, 'CLASSROOM', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          weather_condition, weather_description, weather_severity, weather_location, weather_readings)
+    VALUES (?, ?, ?, ?, ?, ?, 'CLASSROOM', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(checkinId, studentId, cardIdentifier || null, timestamp, readerId || 'CLASSROOM_PHONE_01',
-    location || defaultLocation, readerRoom || room || null, receivedAt.toISOString(), clockAdjusted ? 1 : 0, gateEntry?.timestamp || null,
+    location || defaultLocation, readerRoom || room || null, receivedAt.toISOString(), clockAdjusted ? 1 : 0, gateEntry?.timestamp || null, sessionStart || null, classDay, simulated ? 1 : 0,
     sTime, scheduledEnd || null, periodNumber || null, subjectCode || null, lateMin, isLate ? 1 : 0, reason,
     isFirstArrival ? 1 : 0, commute?.distanceKm ?? null, commute?.durationMinutes ?? null, commute?.typicalMinutes ?? null,
     commute?.trafficDelayMinutes ?? null, commute?.source ?? null,
-    weather?.condition ?? null, weather?.description ?? null, weather?.severity ?? null, weather?.location ?? null);
+    weather?.condition ?? null, weather?.description ?? null, weather?.severity ?? null, weather?.location ?? null,
+    weatherReadings.length ? JSON.stringify(weatherReadings) : null);
 
   let lateArrivalId: string | null = null;
   let statementDeadline: string | null = null;
   let explanationUrl: string | null = null;
+  let weeklyLateCount = 0;
+  let entryDenied = false;
+  let denialReason: string | null = null;
   if (isLate) {
     lateArrivalId = uuidv4();
     // The student must record their explanation within the window, timed by the server clock
@@ -194,13 +228,35 @@ export async function createCheckin(req: Request, res: Response): Promise<void> 
     if (process.env.PUBLIC_WEB_URL) {
       explanationUrl = `${process.env.PUBLIC_WEB_URL.replace(/\/$/, '')}/explanation?checkinId=${checkinId}`;
     }
+
+    // Repeated lateness: count late door scans in the past 7 days, including this one
+    weeklyLateCount = (db.prepare(`
+      SELECT COUNT(*) AS count FROM checkins
+      WHERE student_id = ? AND checkpoint = 'CLASSROOM' AND is_late = 1 AND timestamp >= ?
+    `).get(studentId, new Date(receivedAt.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()) as any).count;
+    db.prepare('UPDATE late_arrivals SET late_count_week = ? WHERE id = ?').run(weeklyLateCount, lateArrivalId);
+
+    if (weeklyLateCount > maxLatePerWeek()) {
+      entryDenied = true;
+      denialReason = `You have been late ${weeklyLateCount} times in the past 7 days (the limit is ${maxLatePerWeek()}). Entry is not allowed and your attendance for this class is denied. Speak to your teacher.`;
+      db.prepare(`
+        UPDATE late_arrivals SET verdict = 'REPEATED_LATENESS', attendance = 'DENIED', verdict_summary = ?,
+          claims_json = '[]', checks_json = ?
+        WHERE id = ?
+      `).run(denialReason, JSON.stringify([
+        { label: 'Late arrivals in the past 7 days', result: `${weeklyLateCount} (limit ${maxLatePerWeek()})`, source: 'NFC door scans' },
+        { label: 'Scans', result: `${gateEntry ? `Gate ${timeFromISO(gateEntry.timestamp)} · ` : ''}Door ${arrivalTime} · class started ${sTime}`, source: 'NFC scans' },
+      ]), lateArrivalId);
+    }
   }
 
-  res.json({
+  return { status: 200, body: {
     success: true,
     checkinId,
     lateArrivalId,
     checkpoint,
+    simulated: !!simulated,
+    classDay,
     studentId: student.id,
     studentName: student.name,
     department: student.department,
@@ -222,15 +278,30 @@ export async function createCheckin(req: Request, res: Response): Promise<void> 
     readerId: readerId || 'CLASSROOM_PHONE_01',
     timestamp,
     clockAdjusted,
+    sessionStart: sessionStart || null,
     gateEntryTime: gateEntry ? timeFromISO(gateEntry.timestamp) : null,
+    gateScanMissing: !!sessionStart && !gateEntry,
     isFirstArrival,
     homeArea: student.home_area || null,
     commute,
     weather,
     statementDeadline,
-    statementWindowMinutes: isLate ? statementWindowMinutes() : null,
+    statementWindowMinutes: isLate && !entryDenied ? statementWindowMinutes() : null,
     explanationUrl,
-  });
+    weeklyLateCount,
+    entryDenied,
+    denialReason,
+  } };
+}
+
+// Late arrivals whose explanation window has passed with no reason are stored as denied
+function closeExpiredStatements(): void {
+  db.prepare(`
+    UPDATE late_arrivals
+    SET verdict = 'NO_STATEMENT', attendance = 'DENIED',
+        verdict_summary = 'No reason was given within ' || ? || ' minutes of arriving late.'
+    WHERE explanation_id IS NULL AND verdict IS NULL AND statement_deadline IS NOT NULL AND statement_deadline < ?
+  `).run(String(statementWindowMinutes()), new Date().toISOString());
 }
 
 // GET /api/checkins
@@ -247,14 +318,15 @@ export function getCheckins(req: Request, res: Response): void {
 }
 
 // GET /api/late-arrivals
-export function getLateArrivals(req: Request, res: Response): void {
+export function getLateArrivals(req: AuthedRequest, res: Response): void {
+  closeExpiredStatements();
   const today = getTodayIST();
   const rows = db.prepare(`
     SELECT la.*, s.name, s.department, s.student_type,
            c.timestamp, c.scheduled_time, c.late_minutes, c.location, c.reader_id,
            e.reason, e.additional_explanation,
            td.teacher_decision,
-           c.class_code, c.room, c.gate_entry_at,
+           c.class_code, c.period, c.room, c.gate_entry_at, c.session_start,
            CASE WHEN la.explanation_id IS NULL AND la.statement_deadline < ? THEN 1 ELSE 0 END AS statement_missed
     FROM late_arrivals la
     JOIN students s ON la.student_id = s.id
@@ -263,12 +335,15 @@ export function getLateArrivals(req: Request, res: Response): void {
     LEFT JOIN teacher_decisions td ON td.late_arrival_id = la.id
     WHERE date(c.timestamp) = ?
     ORDER BY c.timestamp DESC
-  `).all(new Date().toISOString(), today);
-  res.json(rows);
+  `).all(new Date().toISOString(), today) as any[];
+  // Subject teachers see their own classes; the class tutor sees everything
+  const codes = teacherCourseCodes(req.user!);
+  res.json(codes === null ? rows : rows.filter((r) => codes.includes(r.class_code)));
 }
 
 // GET /api/late-arrivals/:id/evidence
 export function getLateArrivalEvidence(req: Request, res: Response): void {
+  closeExpiredStatements();
   const { id } = req.params;
   const la = db.prepare(`
     SELECT la.*, s.name, s.department, s.student_type, s.home_area,
@@ -276,7 +351,7 @@ export function getLateArrivalEvidence(req: Request, res: Response): void {
            c.is_first_arrival, c.commute_distance_km, c.commute_duration_min, c.commute_typical_min,
            c.commute_traffic_delay_min, c.commute_source,
            c.weather_condition, c.weather_description, c.weather_severity, c.weather_location,
-           c.checkpoint, c.room, c.gate_entry_at, c.clock_adjusted,
+           c.checkpoint, c.room, c.gate_entry_at, c.session_start, c.clock_adjusted,
            e.reason, e.additional_explanation, e.timestamp as explanation_timestamp,
            e.input_mode, e.transcript, e.statement_summary, e.minutes_after_arrival
     FROM late_arrivals la
@@ -319,9 +394,17 @@ export function getLateArrivalEvidence(req: Request, res: Response): void {
       readerId: la.reader_id,
       room: la.room,
       gateEntryAt: la.gate_entry_at,
+      sessionStart: la.session_start,
       clockAdjusted: la.clock_adjusted === 1,
     },
     statementDeadline: la.statement_deadline,
+    verdict: la.verdict ? {
+      verdict: la.verdict,
+      attendance: la.attendance,
+      summary: la.verdict_summary,
+      claims: la.claims_json ? JSON.parse(la.claims_json) : [],
+      checks: la.checks_json ? JSON.parse(la.checks_json) : [],
+    } : null,
     statementMissed: !la.explanation_id && !!la.statement_deadline && new Date(la.statement_deadline).getTime() < Date.now(),
     explanation: la.reason ? {
       reason: la.reason,
@@ -376,8 +459,25 @@ function evaluateExplanation(
     homeArea: student.home_area || null,
     commute: commuteFromCheckin(checkin),
     statement: statement ? { transcript: statement.transcript, analysis: statement.analysis } : null,
+    sessionStart: checkin.session_start || null,
     gateEntryTime: checkin.gate_entry_at ? timeFromISO(checkin.gate_entry_at) : null,
     statementMinutesAfterArrival: minutesAfterArrival,
+  });
+
+  // Claim-by-claim truth check → verdict and attendance outcome
+  const verdict = checkClaims({
+    reason,
+    analysis: statement?.analysis || null,
+    arrivalTime: timeFromISO(checkin.timestamp),
+    scheduledTime: checkin.scheduled_time,
+    sessionStart: checkin.session_start || null,
+    gateEntryTime: checkin.gate_entry_at ? timeFromISO(checkin.gate_entry_at) : null,
+    weather,
+    weatherReadings: checkin.weather_readings ? JSON.parse(checkin.weather_readings) : undefined,
+    commute: commuteFromCheckin(checkin),
+    homeArea: student.home_area || null,
+    studentType: student.student_type || 'Day Scholar',
+    transportDelayMinutes: transport?.delay_minutes || 0,
   });
 
   const expId = uuidv4();
@@ -392,14 +492,18 @@ function evaluateExplanation(
   const la = db.prepare('SELECT * FROM late_arrivals WHERE checkin_id = ?').get(checkin.id) as any;
   if (la) {
     db.prepare(`
-      UPDATE late_arrivals SET explanation_id = ?, verification_status = ?, verification_summary = ?, evidence_json = ?
+      UPDATE late_arrivals SET explanation_id = ?, verification_status = ?, verification_summary = ?, evidence_json = ?,
+                               verdict = ?, attendance = ?, verdict_summary = ?, claims_json = ?, checks_json = ?
       WHERE id = ?
-    `).run(expId, engineResult.status, engineResult.reasonSummary, JSON.stringify(engineResult), la.id);
+    `).run(expId, engineResult.status, engineResult.reasonSummary, JSON.stringify(engineResult),
+      verdict.verdict, verdict.attendance, verdict.summary, JSON.stringify(verdict.claims), JSON.stringify(verdict.checks), la.id);
   } else {
     db.prepare(`
-      INSERT INTO late_arrivals (id, checkin_id, student_id, explanation_id, verification_status, verification_summary, evidence_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(uuidv4(), checkin.id, student.id, expId, engineResult.status, engineResult.reasonSummary, JSON.stringify(engineResult));
+      INSERT INTO late_arrivals (id, checkin_id, student_id, explanation_id, verification_status, verification_summary, evidence_json,
+                                 verdict, attendance, verdict_summary, claims_json, checks_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(uuidv4(), checkin.id, student.id, expId, engineResult.status, engineResult.reasonSummary, JSON.stringify(engineResult),
+      verdict.verdict, verdict.attendance, verdict.summary, JSON.stringify(verdict.claims), JSON.stringify(verdict.checks));
   }
 
   return {
@@ -409,6 +513,11 @@ function evaluateExplanation(
     verificationStatus: engineResult.status,
     verificationSummary: engineResult.reasonSummary,
     evidence: engineResult.evidence,
+    verdict: verdict.verdict,
+    attendance: verdict.attendance,
+    verdictSummary: verdict.summary,
+    claims: verdict.claims,
+    checks: verdict.checks,
   };
 }
 
@@ -427,6 +536,10 @@ function findCheckinAndStudent(checkinId: string, studentId: string, res: Respon
     res.status(409).json({ error: 'An explanation has already been submitted for this late arrival' });
     return null;
   }
+  if (lateArrival.verdict === 'REPEATED_LATENESS') {
+    res.status(403).json({ error: lateArrival.verdict_summary, code: 'REPEATED_LATENESS' });
+    return null;
+  }
   if (lateArrival.statement_deadline && new Date(lateArrival.statement_deadline).getTime() < Date.now()) {
     res.status(403).json({
       error: `The ${statementWindowMinutes()}-minute window to explain this late arrival has closed. Your teacher has been notified.`,
@@ -440,17 +553,49 @@ function findCheckinAndStudent(checkinId: string, studentId: string, res: Respon
 
 // GET /api/me/late-checkins — the logged-in student's late arrivals today
 export function getMyLateCheckins(req: AuthedRequest, res: Response): void {
+  closeExpiredStatements();
   const rows = db.prepare(`
     SELECT c.id, c.student_id, c.timestamp, c.scheduled_time, c.late_minutes, c.is_late, c.class_code, c.period, c.room,
-           la.verification_status, la.statement_deadline, e.reason, e.transcript
+           c.session_start, c.gate_entry_at, c.class_day, c.simulated,
+           la.verification_status, la.statement_deadline, la.verdict, la.attendance, la.verdict_summary, la.claims_json, la.checks_json,
+           la.late_count_week,
+           e.reason, e.transcript
     FROM checkins c
     JOIN late_arrivals la ON la.checkin_id = c.id
     LEFT JOIN explanations e ON la.explanation_id = e.id
     WHERE c.student_id = ? AND c.checkpoint = 'CLASSROOM' AND c.is_late = 1 AND date(c.timestamp) = ?
-    ORDER BY c.timestamp DESC
+    ORDER BY c.timestamp DESC, c.received_at DESC
   `).all(req.user!.studentId, getTodayIST());
   // serverTime lets the phone show an accurate countdown even if its own clock is off
-  res.json({ serverTime: new Date().toISOString(), windowMinutes: statementWindowMinutes(), checkins: rows });
+  // The class happening right now — students open this page straight after their door scan,
+  // so the scan for the current class is the one they need to explain
+  const now = new Date().toISOString();
+  const current = calculateLateStatus(now);
+  const currentClass = current.periodNumber && current.subjectCode ? {
+    period: current.periodNumber,
+    classCode: current.subjectCode,
+    courseTitle: COURSES[current.subjectCode]?.title || null,
+    room: current.room || null,
+    start: current.scheduledStart || null,
+    end: current.scheduledEnd || null,
+  } : null;
+
+  const checkins = (rows as any[]).map(({ claims_json, checks_json, ...r }) => ({
+    ...r,
+    claims: claims_json ? JSON.parse(claims_json) : [],
+    checks: checks_json ? JSON.parse(checks_json) : [],
+    // The scan to explain is the one whose window is still open (just scanned), or the class running now
+    is_current_class: (!r.reason && !!r.statement_deadline && r.statement_deadline > now)
+      || (!!currentClass && r.period === currentClass.period && r.scheduled_time === currentClass.start
+          && (r.class_day || weekdayOf(r.timestamp)) === weekdayOf(now)),
+  }));
+  res.json({
+    serverTime: now,
+    windowMinutes: statementWindowMinutes(),
+    currentClass,
+    currentStatus: current.reason, // e.g. LATE / ON_TIME / FREE_PERIOD / BREAK / DAY_SCHEDULE_COMPLETE
+    checkins,
+  });
 }
 
 // POST /api/explanations — reason picked from a fixed list

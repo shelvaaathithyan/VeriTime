@@ -35,9 +35,14 @@ data class CheckinResponse(
     val classCode: String? = null,
     val room: String? = null,
     val gateEntryTime: String? = null,
+    val sessionStart: String? = null,        // "FIRST_CLASS" / "AFTER_LUNCH" — gate scan matters
+    val gateScanMissing: Boolean? = null,
     val clockAdjusted: Boolean? = null,
     val statementWindowMinutes: Int? = null,
-    val explanationUrl: String? = null       // link encoded in the QR code for late students
+    val explanationUrl: String? = null,      // link encoded in the QR code for late students
+    val weeklyLateCount: Int? = null,        // late door scans in the past 7 days, including this one
+    val entryDenied: Boolean? = null,        // late too many times this week: entry refused, no reason accepted
+    val denialReason: String? = null
 )
 
 data class NfcCardData(

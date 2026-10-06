@@ -61,12 +61,13 @@ export async function getCurrentWeather(lat: number, lng: number, location: stri
   }
 }
 
-// Checks weather at every point given and returns the most severe reading
-export async function getWorstWeather(
+// Checks weather at every point given; returns every reading and the most severe one
+export async function getWeatherAlongRoute(
   points: Array<{ lat: number; lng: number; location: string }>
-): Promise<WeatherReport | null> {
-  const reports = (await Promise.all(points.map((p) => getCurrentWeather(p.lat, p.lng, p.location))))
+): Promise<{ worst: WeatherReport | null; readings: WeatherReport[] }> {
+  const readings = (await Promise.all(points.map((p) => getCurrentWeather(p.lat, p.lng, p.location))))
     .filter((r): r is WeatherReport => r !== null);
-  if (reports.length === 0) return null;
-  return reports.reduce((worst, r) => (SEVERITY_RANK[r.severity] > SEVERITY_RANK[worst.severity] ? r : worst));
+  if (readings.length === 0) return { worst: null, readings };
+  const worst = readings.reduce((w, r) => (SEVERITY_RANK[r.severity] > SEVERITY_RANK[w.severity] ? r : w));
+  return { worst, readings };
 }

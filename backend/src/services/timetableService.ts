@@ -9,7 +9,16 @@ export interface LateCalculationResult {
   scheduledStart?: string;
   scheduledEnd?: string;
   timetableId?: string; // Kept for backwards compatibility but we won't need it
+  // Set when this is the first class of a session — students arrive from outside, so both
+  // the gate scan and the classroom door scan matter
+  sessionStart?: SessionStart;
 }
+
+export type SessionStart = 'FIRST_CLASS' | 'AFTER_LUNCH';
+
+// Lunch break falls between period 4 (ends 12:10) and period 5 (starts 13:40)
+const LAST_MORNING_PERIOD = 4;
+const LAST_AFTERNOON_PERIOD = 8;
 
 const PERIODS = [
   { p: 1, start: '08:30', end: '09:20' },
@@ -99,11 +108,80 @@ const TIMETABLE: Record<string, Record<number, TimetableEntry>> = {
   },
 };
 
-export function calculateLateStatus(timestamp: string): LateCalculationResult {
+// Is this period the first actual class (not a free period) of the morning or of the afternoon?
+function sessionStartFor(daySchedule: Record<number, TimetableEntry>, period: number): SessionStart | undefined {
+  const firstClassBetween = (from: number, to: number) => {
+    for (let p = from; p <= to; p++) {
+      if (daySchedule[p]?.type === 'CLASS') return p;
+    }
+    return null;
+  };
+  if (period <= LAST_MORNING_PERIOD) {
+    return firstClassBetween(1, LAST_MORNING_PERIOD) === period ? 'FIRST_CLASS' : undefined;
+  }
+  if (period <= LAST_AFTERNOON_PERIOD) {
+    return firstClassBetween(LAST_MORNING_PERIOD + 1, LAST_AFTERNOON_PERIOD) === period ? 'AFTER_LUNCH' : undefined;
+  }
+  return undefined;
+}
+
+export function weekdayOf(timestamp: string): string {
+  return new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', weekday: 'long' }).format(new Date(timestamp));
+}
+
+// dayOverride applies another weekday's timetable (used by the scan simulator)
+export function calculateLateStatus(timestamp: string, dayOverride?: string): LateCalculationResult {
+  const dayOfWeek = dayOverride || weekdayOf(timestamp);
+  const result = calculateLateStatusInner(timestamp, dayOfWeek);
+  if (result.periodNumber) {
+    const daySchedule = TIMETABLE[dayOfWeek];
+    if (daySchedule) result.sessionStart = sessionStartFor(daySchedule, result.periodNumber);
+  }
+  return result;
+}
+
+export interface TimetableSlot {
+  day: string;
+  period: number;
+  start: string;
+  end: string;
+  code: string;
+  title: string;
+  room: string | null;
+  staff: string[];
+  isFree: boolean;
+  sessionStart: SessionStart | null;
+}
+
+export const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
+// Every scheduled slot in the week (classes and free periods), in order
+export function weekTimetable(): TimetableSlot[] {
+  const slots: TimetableSlot[] = [];
+  for (const day of WEEKDAYS) {
+    for (const p of PERIODS) {
+      const entry = TIMETABLE[day]?.[p.p];
+      if (!entry || entry.type === 'EMPTY' || !entry.label) continue;
+      slots.push({
+        day, period: p.p, start: p.start, end: p.end,
+        code: entry.label,
+        title: COURSES[entry.label]?.title || entry.label,
+        room: entry.room || null,
+        staff: COURSES[entry.label]?.staff || [],
+        isFree: entry.type === 'FREE',
+        sessionStart: entry.type === 'CLASS' ? sessionStartFor(TIMETABLE[day], p.p) || null : null,
+      });
+    }
+  }
+  return slots;
+}
+
+export function findSlot(day: string, period: number): TimetableSlot | undefined {
+  return weekTimetable().find((s) => s.day === day && s.period === period);
+}
+
+function calculateLateStatusInner(timestamp: string, dayOfWeek: string): LateCalculationResult {
   const dateObj = new Date(timestamp);
-  
-  const optionsDay: Intl.DateTimeFormatOptions = { timeZone: 'Asia/Kolkata', weekday: 'long' };
-  const dayOfWeek = new Intl.DateTimeFormat('en-US', optionsDay).format(dateObj);
 
   if (dayOfWeek === 'Saturday' || dayOfWeek === 'Sunday') {
     return { isLate: false, reason: 'NO_SCHEDULED_CLASS' };
