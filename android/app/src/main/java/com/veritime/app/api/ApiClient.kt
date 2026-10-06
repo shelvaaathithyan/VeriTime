@@ -18,14 +18,14 @@ import java.util.concurrent.TimeUnit
  * API client for VeriTime backend.
  * Change BASE_URL to match your local machine's IP when testing from Android emulator or physical device.
  *
- * Emulator: http://10.0.2.2:5001
+ * Emulator: http://10.253.186.11:5001
  * Physical device on same WiFi: http://<your-machine-ip>:5001
  */
 object ApiClient {
 
     // ⚠️ For physical device testing: replace with your machine's local IP (e.g., http://192.168.1.100:5001)
-    // For Android emulator: use http://10.0.2.2:5001
-    var BASE_URL = "http://192.168.0.104:5001"
+    // For Android emulator: use http://10.253.186.11:5001
+    var BASE_URL = "http://10.253.186.11:5001"
 
     private val JSON = "application/json; charset=utf-8".toMediaType()
     private val gson = Gson()
